@@ -1,0 +1,12 @@
+# Router-only environment — no ESP32 or phone required
+#
+# Lightweight config for testing FIPS/TollGate on routers only.
+# Usage: pytest --lg-env=environments/router-only.yaml tests/
+
+targets:
+  router-alpha:
+    role: host
+    name: GL-MT3000 Alpha
+    params:
+      ssh_host: "192.168.13.112"
+      ssh_user: "root"

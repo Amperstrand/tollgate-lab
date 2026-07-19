@@ -1,0 +1,45 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tollgate-lab"
+version = "0.1.0"
+description = "Unified hardware testing library for TollGate, FIPS, and Amperstrand embedded projects"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Amperstrand", email = "dev@amperstrand.com" }]
+dependencies = [
+    "labgrid>=25.0",
+    "pytest>=8.0",
+    "paramiko>=3.4",
+    "pyserial>=3.5",
+    "attrs>=23.0",
+    "pyyaml>=6.0",
+    "nostr-publish>=0.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.4",
+    "mypy>=1.10",
+    "pytest-cov>=5.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "SIM"]
+
+[tool.pytest.ini_options]
+markers = [
+    "benchmark: performance benchmark tests",
+    "hardware: requires physical hardware",
+    "slow: long-running tests (>60s)",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["tollgate_lab"]
