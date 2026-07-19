@@ -1084,10 +1084,7 @@ def deploy_portal(router, portal, arch: str | None = None, branch: str = "main")
     ``tollgate-captive-portal-site`` and CONFLICT with the built-in
     portal so that ``opkg`` handles the symlink swap automatically.
     """
-    try:
-        from lib.portal import PortalConfig
-    except ImportError:
-        PortalConfig = dict
+    PortalConfig = dict  # type alias — physical-router provides real PortalConfig
 
     assert isinstance(portal, PortalConfig)
     if not portal.needs_separate_deploy:

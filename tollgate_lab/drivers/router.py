@@ -11,14 +11,31 @@ import shlex
 BACKEND_PORT = int(os.environ.get('TOLLGATE_BACKEND_PORT', '8080'))
 CGI_PORT = int(os.environ.get('TOLLGATE_CGI_PORT', '2080'))
 TEST_MINT_URL = os.environ.get('TOLLGATE_TEST_MINT_URL', 'https://testmint.nut.cash')
-try:
-    from lib.backend import BackendConfig
-except ImportError:
-    from dataclasses import dataclass
-    @dataclass
-    class BackendConfig:
-        """Fallback when not running in physical-router-test-automation."""
-        pass
+from dataclasses import dataclass, field as dc_field
+
+@dataclass
+class BackendConfig:
+    """Backend configuration for Go/Rust TollGate.
+
+    When used standalone (without physical-router-test-automation),
+    all fields default to Go backend values.
+    """
+    name: str = "go"
+    repo: str = "Amperstrand/tollgate-module-basic-go"
+    workflow: str = "Build and Publish"
+    service_name: str = "tollgate"
+    config_path: str = "/etc/config/tollgate"
+    binary_name: str = "tollgate-wrt"
+    port: int = 8080
+    extra_fields: dict = dc_field(default_factory=dict)
+
+    @property
+    def is_rust(self) -> bool:
+        return self.name == "rust"
+
+    @property
+    def is_go(self) -> bool:
+        return self.name == "go"
 
 log = logging.getLogger("tollgate.router")
 
