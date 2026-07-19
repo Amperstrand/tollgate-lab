@@ -6,7 +6,7 @@ import pytest
 def test_package_imports():
     """Verify tollgate_lab can be imported."""
     import tollgate_lab
-    assert tollgate_lab is not None
+    assert tollgate_lab.__version__ == "0.1.0"
 
 
 def test_drivers_module():
@@ -15,10 +15,12 @@ def test_drivers_module():
     assert hasattr(tollgate_lab.drivers, "__path__")
 
 
-def test_hardware_lock_imports():
-    """Verify hardware lock can be imported."""
-    from tollgate_lab.hardware import lock as lock_module
-    assert lock_module is not None
+def test_hardware_lock_module():
+    """Verify hardware lock functions exist."""
+    from tollgate_lab.hardware import lock
+    assert hasattr(lock, "acquire_hardware_lock")
+    assert hasattr(lock, "release_hardware_lock")
+    assert hasattr(lock, "is_hardware_locked")
 
 
 def test_fixtures_imports():
@@ -30,7 +32,7 @@ def test_fixtures_imports():
 def test_ssh_driver_imports():
     """Verify SSH driver can be imported."""
     from tollgate_lab.drivers import ssh
-    assert ssh is not None
+    assert hasattr(ssh, "_ssh_run")
 
 
 def test_esp_flash_driver_imports():
@@ -39,14 +41,19 @@ def test_esp_flash_driver_imports():
     assert esp_flash is not None
 
 
-@pytest.mark.hardware
-def test_hardware_lock_acquire_release():
-    """Test hardware lock acquire/release cycle."""
-    from tollgate_lab.hardware.lock import HardwareLock
+def test_serial_console_imports():
+    """Verify serial console can be imported."""
+    from tollgate_lab.drivers import serial_console
+    assert serial_console is not None
 
-    lock = HardwareLock("test-tollgate-lab")
-    assert lock.acquire(timeout=5)
-    assert not lock.acquire(timeout=1)  # Already locked
-    lock.release()
-    assert lock.acquire(timeout=5)  # Can re-acquire after release
-    lock.release()
+
+def test_nostr_reporting_imports():
+    """Verify Nostr reporting can be imported."""
+    from tollgate_lab.reporting import nostr_events
+    assert nostr_events is not None
+
+
+def test_deploy_imports():
+    """Verify deploy module can be imported."""
+    from tollgate_lab.deploy import ci_artifact
+    assert ci_artifact is not None

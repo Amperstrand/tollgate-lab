@@ -9,7 +9,7 @@ import tempfile
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-from lib.router_lock import _STALE_THRESHOLD
+_STALE_THRESHOLD = timedelta(hours=1)
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 HARDWARE_LOCK = _PROJECT_ROOT / "hardware.lock"

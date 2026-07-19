@@ -7,8 +7,18 @@ import re
 import logging
 import shlex
 
-from lib.constants import BACKEND_PORT, CGI_PORT, TEST_MINT_URL
-from lib.backend import BackendConfig
+# Default constants — override via constructor params or env vars
+BACKEND_PORT = int(os.environ.get('TOLLGATE_BACKEND_PORT', '8080'))
+CGI_PORT = int(os.environ.get('TOLLGATE_CGI_PORT', '2080'))
+TEST_MINT_URL = os.environ.get('TOLLGATE_TEST_MINT_URL', 'https://testmint.nut.cash')
+try:
+    from lib.backend import BackendConfig
+except ImportError:
+    from dataclasses import dataclass
+    @dataclass
+    class BackendConfig:
+        """Fallback when not running in physical-router-test-automation."""
+        pass
 
 log = logging.getLogger("tollgate.router")
 
@@ -511,7 +521,7 @@ class Router:
 
     def apply_pricing(self, step_size: int | None = None, metric: str = "milliseconds"):
         if step_size is None:
-            from lib.constants import DEFAULT_STEP_SIZE_MS
+            DEFAULT_STEP_SIZE_MS = int(os.environ.get("TOLLGATE_DEFAULT_STEP_SIZE_MS", "1000"))
             step_size = DEFAULT_STEP_SIZE_MS
         self.ssh(
             f"sed -i 's/\"step_size\":[[:space:]]*[0-9]*/\"step_size\": {step_size}/' "

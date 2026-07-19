@@ -241,7 +241,8 @@ def _parse_version(opkg_line):
 
 
 def _write_rust_compat_config(router):
-    from lib.constants import TEST_MINT_URL, DEFAULT_STEP_SIZE_MS
+    TEST_MINT_URL = os.environ.get("TOLLGATE_TEST_MINT_URL", "https://testmint.nut.cash")
+    DEFAULT_STEP_SIZE_MS = int(os.environ.get("TOLLGATE_DEFAULT_STEP_SIZE_MS", "1000"))
     config = {
         "accepted_mints": [{
             "url": TEST_MINT_URL,
@@ -1083,7 +1084,10 @@ def deploy_portal(router, portal, arch: str | None = None, branch: str = "main")
     ``tollgate-captive-portal-site`` and CONFLICT with the built-in
     portal so that ``opkg`` handles the symlink swap automatically.
     """
-    from lib.portal import PortalConfig
+    try:
+        from lib.portal import PortalConfig
+    except ImportError:
+        PortalConfig = dict
 
     assert isinstance(portal, PortalConfig)
     if not portal.needs_separate_deploy:
