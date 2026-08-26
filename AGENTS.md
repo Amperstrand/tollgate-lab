@@ -277,4 +277,4 @@ Agent rules on this shared account (multiple agent projects on this machine use 
 2. Never end a task with a VM in `stopped` state — that is billable debris (incident: a VM sat stopped for 9 days = $3.12 wasted).
 3. Long-lived VMs must be added to `physical-router-test-automation/config/approved-resources.yaml` so the cost audit attributes them instead of flagging UNAPPROVED.
 4. Ephemeral VMs must use a reaper-reapable hostname prefix (`tollgate-`, `ci-`, `test-`, `tg-`) — other hostnames are never auto-cleaned.
-5. Zone: Dev VPS (Cherryvale, KS) is unreachable from Europe and still broken (shc-toolkit issue #28). Use NVMe sizes (Zone 4, Katy, TX).
+5. Zone: Dev VPS (Cherryvale, KS) recovered upstream (issue #28 resolved 2026-08-25) but is unreachable from this EU lab route — prefer NVMe sizes (Zone 4, Katy, TX) when ordering from here.
