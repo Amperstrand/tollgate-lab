@@ -262,3 +262,19 @@ def test_router_responds(router_session):
 | Bluetooth adapters | `BleAdapterDriver` | HCI (via SSH or local) |
 | Android phones | `AndroidADBDriver` | ADB |
 | FIPS daemons | `FipsServiceDriver` | systemd / launchd |
+
+## SHC cloud VM billing — READ BEFORE ORDERING OR STOPPING A VM
+
+SHC bills by **service existence, not power state**:
+
+- A **stopped** VM still accrues its full daily price (NVMe Starter $0.26/day, Dev tier $0.24/day, up to $3.54/day). Powering off is NOT cleanup.
+- The only cost-free state is **canceled**: `shc cancel <service-id>` (immediate cancel refunds the unused part of the current day).
+- Renewals draw down account credit **silently** — `shc transactions` shows only credits/topups and `shc invoices` stays empty. Audit what exists with `physical-router-test-automation/scripts/cost-status.py`.
+
+Agent rules on this shared account (multiple agent projects on this machine use ONE SHC account and credit balance):
+
+1. Every VM ordered in a session is **canceled in that same session** unless the user explicitly takes ownership of it.
+2. Never end a task with a VM in `stopped` state — that is billable debris (incident: a VM sat stopped for 9 days = $3.12 wasted).
+3. Long-lived VMs must be added to `physical-router-test-automation/config/approved-resources.yaml` so the cost audit attributes them instead of flagging UNAPPROVED.
+4. Ephemeral VMs must use a reaper-reapable hostname prefix (`tollgate-`, `ci-`, `test-`, `tg-`) — other hostnames are never auto-cleaned.
+5. Zone: Dev VPS (Cherryvale, KS) is unreachable from Europe and still broken (shc-toolkit issue #28). Use NVMe sizes (Zone 4, Katy, TX).
