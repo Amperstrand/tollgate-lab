@@ -15,7 +15,7 @@ Quick start:
 __version__ = "0.1.0"
 
 # Public API — stable interface
-from tollgate_lab.hardware import HardwareLock
+from tollgate_lab.hardware import HardwareLock as HardwareLock
 from tollgate_lab.reservation import (
     BoardReservation,
     ReservationError as ReservationError,
