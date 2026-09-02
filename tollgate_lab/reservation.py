@@ -30,12 +30,13 @@ flashed; this module gates WHEN. Use both.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import socket
 import tempfile
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 DEFAULT_RESERVATION_DIR = Path(
@@ -102,7 +103,7 @@ def reserve(
         "host": socket.gethostname(),
         "pid": os.getpid(),
         "note": note,
-        "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "created_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "acquired_at": now,
         "expires_at": now + ttl_secs,
     }
@@ -112,10 +113,8 @@ def reserve(
             json.dump(entry, f, indent=2)
         os.replace(tmp, path)
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.remove(tmp)
-        except OSError:
-            pass
         raise
     return entry
 
@@ -183,7 +182,7 @@ def _write(path: Path, serial: str, project: str, ttl_secs: int, now: float, not
         "host": socket.gethostname(),
         "pid": os.getpid(),
         "note": note,
-        "refreshed_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "refreshed_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "acquired_at": now,
         "expires_at": now + ttl_secs,
     }
@@ -193,10 +192,8 @@ def _write(path: Path, serial: str, project: str, ttl_secs: int, now: float, not
             json.dump(entry, f, indent=2)
         os.replace(tmp, path)
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.remove(tmp)
-        except OSError:
-            pass
         raise
     return entry
 
