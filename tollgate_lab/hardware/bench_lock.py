@@ -66,7 +66,10 @@ def _git_branch(cwd: str | None) -> str:
     try:
         out = subprocess.run(
             ["git", "branch", "--show-current"],
-            capture_output=True, text=True, timeout=5, cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd=cwd,
         )
         return out.stdout.strip() or "-" if out.returncode == 0 else "-"
     except (OSError, subprocess.TimeoutExpired):
@@ -78,7 +81,7 @@ def acquire_bench_lock(
     timeout_s: float = 0.0,
     project: str = "",
     cwd: str | None = None,
-) -> "BenchLock":
+) -> BenchLock:
     """Take the cross-project bench flock. Non-blocking by default
     (timeout_s=0 raises immediately if held); a positive timeout polls.
     Order discipline for composite locking: BenchLock FIRST, then any
@@ -93,9 +96,7 @@ def acquire_bench_lock(
         except BlockingIOError:
             if time.monotonic() >= deadline:
                 os.close(fd)
-                raise BenchLockHeldError(
-                    holder=read_bench_lock(path)
-                ) from None
+                raise BenchLockHeldError(holder=read_bench_lock(path)) from None
             time.sleep(0.5)
 
     holder = {
@@ -128,7 +129,7 @@ class BenchLock:
                 os.close(self.fd)
                 self.fd = -1
 
-    def __enter__(self) -> "BenchLock":
+    def __enter__(self) -> BenchLock:
         return self
 
     def __exit__(self, *args) -> None:
