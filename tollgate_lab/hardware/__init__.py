@@ -1,5 +1,11 @@
 """Hardware locking for test session isolation."""
 
+from tollgate_lab.hardware.bench_lock import (
+    BenchLock,
+    BenchLockHeldError,
+    acquire_bench_lock,
+    read_bench_lock,
+)
 from tollgate_lab.hardware.lock import (
     acquire_hardware_lock,
     release_hardware_lock,
