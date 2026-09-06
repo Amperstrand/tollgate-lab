@@ -278,3 +278,14 @@ Agent rules on this shared account (multiple agent projects on this machine use 
 3. Long-lived VMs must be added to `physical-router-test-automation/config/approved-resources.yaml` so the cost audit attributes them instead of flagging UNAPPROVED.
 4. Ephemeral VMs must use a reaper-reapable hostname prefix (`tollgate-`, `ci-`, `test-`, `tg-`) — other hostnames are never auto-cleaned.
 5. Zone: Dev VPS (Cherryvale, KS) recovered upstream (issue #28 resolved 2026-08-25) but is unreachable from this EU lab route — prefer NVMe sizes (Zone 4, Katy, TX) when ordering from here.
+
+## External posting (owner directive 2026-09-06 — CHANNEL rule)
+
+Agents never post on non-member repos — no `gh` writes (issues, PRs,
+comments, reviews, gists), not even with per-text owner sign-off; the
+owner does the copy-paste into GitHub themselves. Member orgs (verify:
+`gh api user/orgs`; 2026-09-06: Amperstrand, OpenTollGate, net4sats,
+FreedomTechFeed) keep the existing owner-gate flow. Read the target
+repo CONTRIBUTING/AI policy before drafting anything upstream.
+Canonical text: lightning-playground AGENTS.md (standing rule UPDATE
+2026-09-06).
