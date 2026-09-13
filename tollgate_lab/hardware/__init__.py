@@ -12,6 +12,18 @@ from tollgate_lab.hardware.bench_lock import (
 from tollgate_lab.hardware.bench_lock import (
     read_bench_lock as read_bench_lock,
 )
+from tollgate_lab.hardware.gate import (
+    FakeSource as FakeSource,
+)
+from tollgate_lab.hardware.gate import (
+    SerialLineSource as SerialLineSource,
+)
+from tollgate_lab.hardware.gate import (
+    TelemetryGateError as TelemetryGateError,
+)
+from tollgate_lab.hardware.gate import (
+    assert_telemetry as assert_telemetry,
+)
 from tollgate_lab.hardware.lock import (
     acquire_hardware_lock as acquire_hardware_lock,
 )
@@ -24,6 +36,24 @@ from tollgate_lab.hardware.lock import (
 from tollgate_lab.hardware.lock import (
     release_hardware_lock,
     require_hardware_lock,
+)
+from tollgate_lab.hardware.port import (
+    AmbiguousPortError as AmbiguousPortError,
+)
+from tollgate_lab.hardware.port import (
+    FlashPolicy as FlashPolicy,
+)
+from tollgate_lab.hardware.port import (
+    PortAbsentError as PortAbsentError,
+)
+from tollgate_lab.hardware.port import (
+    PortMatch as PortMatch,
+)
+from tollgate_lab.hardware.port import (
+    policy_for as policy_for,
+)
+from tollgate_lab.hardware.port import (
+    resolve_port as resolve_port,
 )
 
 

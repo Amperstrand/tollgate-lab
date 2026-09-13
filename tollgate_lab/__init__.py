@@ -25,6 +25,27 @@ from tollgate_lab.hardware import (
     HardwareLock as HardwareLock,
 )
 from tollgate_lab.hardware import (
+    AmbiguousPortError as AmbiguousPortError,
+)
+from tollgate_lab.hardware import (
+    PortAbsentError as PortAbsentError,
+)
+from tollgate_lab.hardware import (
+    PortMatch as PortMatch,
+)
+from tollgate_lab.hardware import (
+    TelemetryGateError as TelemetryGateError,
+)
+from tollgate_lab.hardware import (
+    assert_telemetry as assert_telemetry,
+)
+from tollgate_lab.hardware import (
+    policy_for as policy_for,
+)
+from tollgate_lab.hardware import (
+    resolve_port as resolve_port,
+)
+from tollgate_lab.hardware import (
     acquire_bench_lock as acquire_bench_lock,
 )
 from tollgate_lab.hardware import (
