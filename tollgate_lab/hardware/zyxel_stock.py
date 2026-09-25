@@ -351,8 +351,6 @@ def password_ladder(host: str, passwords: list[str]) -> str | None:
 
     Handles the 2026-09-25 class of incident: an unverified 'save' meant a
     reboot reverted the switch to factory credentials (1234)."""
-    import http.cookiejar
-    import urllib.request as _u
     for pw in passwords:
         try:
             StockWeb(host, pw)
