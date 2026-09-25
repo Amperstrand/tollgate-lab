@@ -74,6 +74,48 @@ class AndroidADBDriver(Driver, CommandProtocol):
         result = self._adb(["get-state"], timeout=5.0)
         return result.stdout.strip() or "unreachable"
 
+    @step(args=["command"])
+    def wait_for(self, command, pattern, timeout=30.0, interval=1.0):
+        """Run command repeatedly until its output matches pattern.
+
+        Returns the matching output lines; raises ExecutionError on timeout.
+        """
+        import re as _re
+        import time as _time
+
+        from labgrid.driver.exception import ExecutionError
+
+        deadline = _time.monotonic() + timeout
+        while _time.monotonic() < deadline:
+            stdout, _stderr, exitcode = self.run(command, timeout=timeout)
+            if exitcode == 0:
+                match = [line for line in stdout if _re.search(pattern, line)]
+                if match:
+                    return match
+            _time.sleep(interval)
+        raise ExecutionError(
+            f"wait_for: {command!r} never matched {pattern!r} "
+            f"within {timeout:.0f}s")
+
+    @step(args=["command"])
+    def poll_until_success(self, command, timeout=30.0, interval=1.0):
+        """Run command repeatedly until it exits 0; returns final stdout."""
+        import time as _time
+
+        deadline = _time.monotonic() + timeout
+        while True:
+            stdout, stderr, exitcode = self.run(command, timeout=timeout)
+            if exitcode == 0:
+                return stdout
+            if _time.monotonic() >= deadline:
+                from labgrid.driver.exception import ExecutionError
+
+                raise ExecutionError(
+                    f"poll_until_success: {command!r} failed with "
+                    f"rc={exitcode} after {timeout:.0f}s: "
+                    f"{chr(10).join(stderr)}")
+            _time.sleep(interval)
+
     def screenshot(self, dest_path: str):
         """Capture a screenshot from the device."""
         self._adb(["shell", "screencap", "-p", "/sdcard/screen.png"])
