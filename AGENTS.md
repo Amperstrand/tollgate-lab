@@ -289,3 +289,7 @@ FreedomTechFeed) keep the existing owner-gate flow. Read the target
 repo CONTRIBUTING/AI policy before drafting anything upstream.
 Canonical text: lightning-playground AGENTS.md (standing rule UPDATE
 2026-09-06).
+
+## Secrets: sops only (2026-09-25 incident)
+
+Bench secrets files are sops-encrypted. `json.load()` yields `ENC[AES256_GCM,...]` ciphertext — authenticating with it produces auth failures that impersonate box faults (an agent diagnosed a healthy switch as "wedged" for 90 min this way). Always `sops -d --extract`. Full rules: `~/conwrt-bench/AGENTS.md` + `docs/BENCH-PLAYBOOK.md` there. Sanity-gate: a "password" >40 chars or starting `ENC[` is ciphertext.
