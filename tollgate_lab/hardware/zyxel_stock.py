@@ -143,10 +143,14 @@ class StockWeb:
         raise RuntimeError("login failed (login_chk never OK — stale session?)")
 
     def _xssid(self) -> str:
-        m = re.search(r'name="XSSID"\s+value="([0-9A-F]+)"', self.get(550))
-        if not m:
-            raise RuntimeError("no XSSID token on cmd=550")
-        return m.group(1)
+        # Page maps differ across config eras: post-login redirect may be
+        # cmd=1 (normal) or cmd=30 (factory forced-password gate). The CSRF
+        # token appears on any rendered form page — try them in order.
+        for page in (1, 30, 550):
+            m = re.search(r'name="XSSID"\s+value="([0-9A-F]+)"', self.get(page))
+            if m:
+                return m.group(1)
+        raise RuntimeError("no XSSID token on cmd=1/30/550")
 
     def _evicted(self, body: str) -> bool:
         return not self._in_login and any(
@@ -237,6 +241,66 @@ class StockWeb:
             time.sleep(1.5)
         raise RuntimeError(f"poe toggle port {port} unverified: {row}")
 
+    def set_static_ip(self, ip: str, netmask: str = "255.255.255.0",
+                      gateway: str = "192.168.13.1") -> None:
+        """cmd=516/517: static IP setup. mode radio: 0=Static, 1=DHCP
+        (inverted from what you'd guess — verified live 2026-09-25). The
+        session drops when the address changes; reconnect at the new IP."""
+        page = self.get(516)
+        m = re.search(r'name="XSSID"\s+value="([0-9A-F]+)"', page)
+        if not m:
+            raise RuntimeError("no XSSID on cmd=516")
+        import urllib.request as _u
+        fields = [("XSSID", m.group(1)), ("mode", "0"), ("ip", ip),
+                  ("netmask", netmask), ("gateway", gateway),
+                  ("dns1", "0.0.0.0"), ("dns2", "0.0.0.0"),
+                  ("management_vlan", "1"), ("cmd", "517"),
+                  ("sysSubmit", "Apply")]
+        req = _u.Request(self.base,
+                         data="&".join(f"{k}={v}" for k, v in fields).encode(),
+                         headers={"Content-Type": "application/x-www-form-urlencoded"})
+        try:
+            self.opener.open(req, timeout=8)
+        except Exception:
+            pass  # address moved; connection drop is the expected outcome
+
+    def save_config(self) -> bool:
+        """cmd=5898/5899: copy RUNNING (srcFile=1) to STARTUP (dstFile=2).
+
+        The dual-slot radio form REQUIRES exactly one value per radio —
+        posting all values (the browser sends only checked ones) silently
+        no-ops. This exact recipe survived a verify-reboot on 2026-09-25;
+        the ambiguous form POST did not (the stock-poe revert incident)."""
+        import urllib.request as _u
+        page = self.get(5898)
+        m = re.search(r'name="XSSID"\s+value="([0-9A-F]+)"', page)
+        if not m:
+            raise RuntimeError("no XSSID on cmd=5898")
+        fields = [("XSSID", m.group(1)), ("srcFile", "1"), ("dstFile", "2"),
+                  ("cmd", "5899"), ("sysSubmit", "Apply")]
+        req = _u.Request(self.base,
+                         data="&".join(f"{k}={v}" for k, v in fields).encode(),
+                         headers={"Content-Type": "application/x-www-form-urlencoded"})
+        resp = self.opener.open(req, timeout=15).read().decode("latin-1", "replace")
+        return "Configuration saved" in resp
+
+    def reboot(self) -> None:
+        """cmd=5888/5889: controlled reboot (~40 s downtime on GS1900-8HP)."""
+        import urllib.request as _u
+        page = self.get(5888)
+        m = re.search(r'name="XSSID"\s+value="([0-9A-F]+)"', page)
+        if not m:
+            raise RuntimeError("no XSSID on cmd=5888")
+        fields = [("XSSID", m.group(1)), ("cmd", "5889"),
+                  ("sysSubmit", "Reboot")]
+        req = _u.Request(self.base,
+                         data="&".join(f"{k}={v}" for k, v in fields).encode(),
+                         headers={"Content-Type": "application/x-www-form-urlencoded"})
+        try:
+            self.opener.open(req, timeout=8)
+        except Exception:
+            pass  # box goes down; drop is expected
+
     # -- services -----------------------------------------------------------
 
     def enable_ssh(self) -> bool:
@@ -280,6 +344,61 @@ class StockCLI:
             proc.kill()
             out, _ = proc.communicate()
         return out or ""
+
+
+def password_ladder(host: str, passwords: list[str]) -> str | None:
+    """Return the first password that authenticates (phase-2 OK), else None.
+
+    Handles the 2026-09-25 class of incident: an unverified 'save' meant a
+    reboot reverted the switch to factory credentials (1234)."""
+    import http.cookiejar
+    import urllib.request as _u
+    for pw in passwords:
+        try:
+            StockWeb(host, pw)
+            return pw
+        except Exception:
+            continue
+    return None
+
+
+def complete_password_gate(host: str, old: str, new: str) -> bool:
+    """Satisfy the factory forced-password-change gate (cmd=30/31).
+
+    CRITICAL procedure knowledge (2026-09-25): the gate form must be fetched
+    in a VIRGIN session and POSTed with THAT fetch's XSSID; a stale token
+    fails silently (response redirects like a cancel), and visiting cmd=4
+    skips the gate but wedges the session into a redirect loop. All three
+    password fields are zyxel_encode()d before POST."""
+    import urllib.request as _u
+    w = StockWeb.__new__(StockWeb)
+    w.base = f"http://{host}/cgi-bin/dispatcher.cgi"
+    w.user, w.host = "admin", host
+    w.jar = http.cookiejar.CookieJar()
+    w.opener = _u.build_opener(_u.HTTPCookieProcessor(w.jar))
+
+    def post(data: str) -> str:
+        req = _u.Request(w.base, data=data.encode(),
+                        headers={"Content-Type": "application/x-www-form-urlencoded"})
+        return w.opener.open(req, timeout=8).read().decode("latin-1", "replace")
+
+    auth_id = post(f"username=admin&password={zyxel_encode(old)}&login=true;").strip()
+    if "OK" not in post(f"authId={auth_id}&login_chk=true"):
+        return False
+    page = w.get(30)
+    m = re.search(r'name="XSSID"\s+value="([0-9A-F]+)"', page)
+    if not m:
+        return False  # no gate in this state
+    fields = [("XSSID", m.group(1)), ("usrName", "admin"),
+              ("usrOldPass", zyxel_encode(old)), ("usrPass", zyxel_encode(new)),
+              ("usrPass2", zyxel_encode(new)), ("usrPassEncode", zyxel_encode(new)),
+              ("cmd", "31"), ("sysSubmit", "Apply")]
+    post("&".join(f"{k}={v}" for k, v in fields))
+    try:
+        StockWeb(host, new)
+        return True
+    except Exception:
+        return False
 
 
 def mac_address_table(host: str, password: str) -> dict[str, list[str]]:
