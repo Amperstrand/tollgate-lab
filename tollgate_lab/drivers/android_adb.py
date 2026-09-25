@@ -5,11 +5,12 @@ Labgrid has fastboot support but no native ADB driver. This fills that gap.
 
 import logging
 import subprocess
-import attr
 
+import attr
 from labgrid import target_factory
 from labgrid.driver import Driver
 from labgrid.protocol.commandprotocol import CommandProtocol
+from labgrid.resource.common import Resource
 from labgrid.step import step
 
 
@@ -91,6 +92,10 @@ class AndroidADBDriver(Driver, CommandProtocol):
 
 @target_factory.reg_resource
 @attr.s(eq=False)
-class AndroidADDDevice:
-    """Resource describing an ADB-accessible Android device."""
+class AndroidADDDevice(Resource):
+    """Resource describing an ADB-accessible Android device.
+
+    Subclasses Resource so the factory can construct it (target/name come
+    from the base); serial="" means "the one phone on this host".
+    """
     serial = attr.ib(default=None)
