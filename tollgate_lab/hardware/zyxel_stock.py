@@ -92,16 +92,34 @@ def zyxel_encode(pw: str) -> str:
 
 
 class StockWeb:
-    """Authenticated dispatcher.cgi session (the write path)."""
+    """Authenticated dispatcher.cgi session (the write path).
+
+    Eviction-safe (2026-09-25, live-observed when two agents shared the
+    switch): only ONE web session per user exists, and a concurrent login
+    evicts ours MID-SESSION — subsequent get/post_cmd then return the login
+    page instead of the requested page. get()/post_cmd() detect that shape,
+    re-login once with a clean cookie jar, and retry the operation.
+    """
+
+    _LOGIN_PAGE_MARKERS = ('id="username"', "login_language")
 
     def __init__(self, host: str, password: str, user: str = "admin"):
         self.base = f"http://{host}/cgi-bin/dispatcher.cgi"
         self.user, self.host = user, host
+        self._password = password
+        self._in_login = False
         self._login(password)
 
     def _login(self, password: str) -> None:
         self.jar = http.cookiejar.CookieJar()
         self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.jar))
+        self._in_login = True
+        try:
+            self._login_locked(password)
+        finally:
+            self._in_login = False
+
+    def _login_locked(self, password: str) -> None:
 
         def post(data: str) -> str:
             req = urllib.request.Request(
@@ -130,12 +148,23 @@ class StockWeb:
             raise RuntimeError("no XSSID token on cmd=550")
         return m.group(1)
 
+    def _evicted(self, body: str) -> bool:
+        return not self._in_login and any(
+            m in body for m in self._LOGIN_PAGE_MARKERS)
+
+    def _fetch(self, request: urllib.request.Request) -> str:
+        body = self.opener.open(request, timeout=8).read().decode("latin-1", "replace")
+        if self._evicted(body):
+            self._login(self._password)
+            body = self.opener.open(request, timeout=8).read().decode("latin-1", "replace")
+            if self._evicted(body):
+                raise RuntimeError(
+                    "session evicted twice in a row — another client is "
+                    "actively hammering the single web session")
+        return body
+
     def get(self, cmd: int) -> str:
-        return (
-            self.opener.open(f"{self.base}?cmd={cmd}", timeout=8)
-            .read()
-            .decode("latin-1", "replace")
-        )
+        return self._fetch(urllib.request.Request(f"{self.base}?cmd={cmd}"))
 
     def post_cmd(self, cmd: int, fields: dict[str, str]) -> str:
         data = "&".join(f"{k}={v}" for k, v in fields.items())
@@ -144,7 +173,7 @@ class StockWeb:
             data=f"XSSID={self.xssid}&{data}&cmd={cmd}&sysSubmit=Apply".encode(),
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
-        return self.opener.open(req, timeout=8).read().decode("latin-1", "replace")
+        return self._fetch(req)
 
     # -- PoE ----------------------------------------------------------------
 
@@ -168,17 +197,23 @@ class StockWeb:
                 }
         return rows
 
-    def set_poe_state(self, port: int, enabled: bool, priority: str | None = None) -> dict:
+    def set_poe_state(
+        self,
+        port: int,
+        enabled: bool,
+        priority: str | None = None,
+        powerup: str | None = None,
+    ) -> dict:
         """Full-field read-modify-write toggle, verified by re-poll.
         Sibling fields come from the CURRENT 773 row (converted to their
-        wire enums) so nothing drifts; ``priority`` optionally overrides the
-        PD priority (display string, e.g. "Low" — drift repair)."""
+        wire enums) so nothing drifts; ``priority``/``powerup`` optionally
+        override display values (e.g. "Low"/"802.3at" — drift repair)."""
         cur = self.poe_status().get(port)
         if cur is None:
             raise RuntimeError(f"port {port} not present in cmd=773")
         try:
             pri = PRIORITY_ENUM[priority or cur["priority"]]
-            mode = POWERMODE_ENUM[cur["powerup"]]
+            mode = POWERMODE_ENUM[powerup or cur["powerup"]]
         except KeyError as e:
             raise RuntimeError(
                 f"unknown PoE display value {e} (row={cur}) — refusing to "
