@@ -34,6 +34,7 @@ hugil/zyxel-mcp and jonbulica99/zyxel-poe-manager — verify before use):
 
 from __future__ import annotations
 
+import contextlib
 import http.cookiejar
 import random
 import re
@@ -259,10 +260,8 @@ class StockWeb:
         req = _u.Request(self.base,
                          data="&".join(f"{k}={v}" for k, v in fields).encode(),
                          headers={"Content-Type": "application/x-www-form-urlencoded"})
-        try:
+        with contextlib.suppress(Exception):  # address moved; drop expected
             self.opener.open(req, timeout=8)
-        except Exception:
-            pass  # address moved; connection drop is the expected outcome
 
     def save_config(self) -> bool:
         """cmd=5898/5899: copy RUNNING (srcFile=1) to STARTUP (dstFile=2).
@@ -296,10 +295,8 @@ class StockWeb:
         req = _u.Request(self.base,
                          data="&".join(f"{k}={v}" for k, v in fields).encode(),
                          headers={"Content-Type": "application/x-www-form-urlencoded"})
-        try:
+        with contextlib.suppress(Exception):  # box goes down; drop expected
             self.opener.open(req, timeout=8)
-        except Exception:
-            pass  # box goes down; drop is expected
 
     # -- services -----------------------------------------------------------
 
