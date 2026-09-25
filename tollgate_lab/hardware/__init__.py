@@ -37,30 +37,6 @@ from tollgate_lab.hardware.lock import (
     release_hardware_lock,
     require_hardware_lock,
 )
-from tollgate_lab.hardware.poe import (
-    PoeControllerConfig as PoeControllerConfig,
-)
-from tollgate_lab.hardware.poe import (
-    PoeError as PoeError,
-)
-from tollgate_lab.hardware.poe import (
-    PoePortInfo as PoePortInfo,
-)
-from tollgate_lab.hardware.poe import (
-    PoePowerController as PoePowerController,
-)
-from tollgate_lab.hardware.poe import (
-    PoeProtectedPortError as PoeProtectedPortError,
-)
-from tollgate_lab.hardware.poe import (
-    PoeStatus as PoeStatus,
-)
-from tollgate_lab.hardware.poe import (
-    PoeSwitchInfo as PoeSwitchInfo,
-)
-from tollgate_lab.hardware.poe import (
-    PoeUnresponsiveError as PoeUnresponsiveError,
-)
 from tollgate_lab.hardware.port import (
     AmbiguousPortError as AmbiguousPortError,
 )

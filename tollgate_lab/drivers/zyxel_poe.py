@@ -11,6 +11,10 @@ labgrid/POE-BACKEND-DECISION.md. Security posture: SSH key auth only,
 no uhttpd-mod-ubus / unauthenticated-ubus HTTP ACLs on the switch, host
 keys verified via accept-new.
 
+The PoePowerController lineage (branch laptop-main-20260925) was absorbed
+here 2026-09-25 — rich PoeStatus enum + budget-projection warning
+(decision doc Phase 2.5) — leaving this driver the ONE PoE implementation.
+
 Operational hardening ported from conwrt_poe.py (verified against two
 live wedge incidents, 2026-09-2x):
 - A wedged realtek-poe daemon answers `poe info` with a frozen snapshot
@@ -23,6 +27,7 @@ live wedge incidents, 2026-09-2x):
   (amperstrand-bench flock), coordinate, restart /etc/init.d/poe by hand.
 """
 
+import enum
 import json
 import logging
 import subprocess
@@ -41,11 +46,52 @@ from labgrid.step import step
 #: lan1 = lab-LAN uplink + DUT-VLAN trunk, lan8 = cascade to GS1900-8HP #2.
 PROTECTED_PORTS = frozenset({"lan1", "lan8"})
 
+
+class PoeStatus(enum.Enum):
+    """Operational PoE port state from ``ubus call poe info`` (realtek-poe).
+
+    Rich classification for callers that need more than the on/off boolean
+    (absorbed from the PoePowerController lineage): SEARCHING means the PSE
+    is admin-enabled but no PD is drawing (device absent or not
+    negotiating), FAULT/OTHER_FAULT need switch-side diagnosis (RFC 3621
+    state model). OFF/EMPTY are defensive spellings seen on some forks.
+    """
+
+    DISABLED = "Disabled"
+    OFF = "off"
+    EMPTY = ""
+    SEARCHING = "Searching"
+    REQUESTING = "Requesting power"
+    DELIVERING = "Delivering power"
+    FAULT = "Fault"
+    OTHER_FAULT = "Other fault"
+    INITIALIZING = "initializing"  # daemon has not queried the MCU yet
+    UNKNOWN = "unknown"
+
+    @classmethod
+    def parse(cls, raw: str) -> "PoeStatus | None":
+        """Case/whitespace-tolerant mapping; None = unrecognized string.
+
+        The driver itself treats unrecognized statuses as on-class (frozen
+        get() behavior) — parse() never raises on them.
+        """
+        norm = raw.strip().lower()
+        for member in cls:
+            if member.value.lower() == norm:
+                return member
+        return None
+
+
 #: Status strings meaning "port is off / not powered".
-OFF_STATES = frozenset({"disabled", "off", "", "fault"})
+OFF_STATES = frozenset(
+    member.value.lower()
+    for member in (PoeStatus.DISABLED, PoeStatus.OFF, PoeStatus.EMPTY, PoeStatus.FAULT)
+)
 #: Status strings that are neither on nor off yet — never accepted as a
 #: verification match.
-TRANSIENT_STATES = frozenset({"initializing", "unknown"})
+TRANSIENT_STATES = frozenset(
+    member.value.lower() for member in (PoeStatus.INITIALIZING, PoeStatus.UNKNOWN)
+)
 
 #: Healthy readback lag tolerance before a frozen snapshot counts as a wedge.
 SETTLING_S = 35.0
@@ -223,8 +269,36 @@ class ZyxelPoEDriver(Driver, PowerResetMixin, PowerProtocol):
             f"{'disabled-class' if want_disabled else 'active-class'})"
         )
 
+    def _budget_guard(self):
+        """Warn when enabling projects past the switch PoE budget.
+
+        The MCU load-sheds by priority when over budget — that would
+        silently power off OTHER lab devices (absorbed from the
+        PoePowerController lineage). Missing/zero budget fields mean the
+        fork did not report them: no warning, never fatal.
+        """
+        info = json.loads(self._ssh("ubus call poe info"))
+        ports = info.get("ports", {})
+        entry = ports.get(self.port.port) if isinstance(ports, dict) else None
+        try:
+            budget = float(info.get("budget", 0.0))
+            consumption = float(info.get("consumption", 0.0))
+            port_budget = float(entry.get("power_budget", 0.0)) if entry else 0.0
+        except (TypeError, ValueError):
+            return
+        projected = consumption + port_budget
+        if projected > budget > 0:
+            self.logger.warning(
+                "poe %s: enabling projects %.1fW over the %.1fW budget "
+                "(port allocation %.1fW) — the MCU may load-shed OTHER "
+                "ports by priority",
+                self.port.port, projected, budget, port_budget,
+            )
+
     def _set(self, enable):
         self._assert_not_protected()
+        if enable:
+            self._budget_guard()
         payload = json.dumps(
             {"port": self.port.port, "action": "enable" if enable else "disable"}
         )

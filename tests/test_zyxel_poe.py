@@ -273,3 +273,105 @@ def test_ssh_timeout_raises_execution_error(monkeypatch):
     monkeypatch.setattr(zyxel_poe.subprocess, "run", timing_out)
     with pytest.raises(ExecutionError, match="timed out"):
         make_driver().on()
+
+
+# -- PoeStatus enum (absorbed from the PoePowerController lineage) ------------
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("Disabled", zyxel_poe.PoeStatus.DISABLED),
+        ("Searching", zyxel_poe.PoeStatus.SEARCHING),
+        ("Requesting power", zyxel_poe.PoeStatus.REQUESTING),
+        ("Delivering power", zyxel_poe.PoeStatus.DELIVERING),
+        ("Fault", zyxel_poe.PoeStatus.FAULT),
+        ("Other fault", zyxel_poe.PoeStatus.OTHER_FAULT),
+        ("initializing", zyxel_poe.PoeStatus.INITIALIZING),
+        ("unknown", zyxel_poe.PoeStatus.UNKNOWN),
+        ("off", zyxel_poe.PoeStatus.OFF),
+        ("", zyxel_poe.PoeStatus.EMPTY),
+        ("  DELIVERING POWER ", zyxel_poe.PoeStatus.DELIVERING),
+    ],
+)
+def test_poe_status_parse(raw, expected):
+    assert zyxel_poe.PoeStatus.parse(raw) is expected
+
+
+@pytest.mark.parametrize("raw", ["Zombie", "searching power"])
+def test_poe_status_parse_unrecognized_is_none(raw):
+    # Unrecognized statuses parse to None — never a hard error; the driver
+    # keeps treating them as on-class (frozen get() behavior).
+    assert zyxel_poe.PoeStatus.parse(raw) is None
+
+
+def test_verification_sets_derived_from_enum():
+    assert set(zyxel_poe.OFF_STATES) == {"disabled", "off", "", "fault"}
+    assert set(zyxel_poe.TRANSIENT_STATES) == {"initializing", "unknown"}
+
+
+# -- budget guard (absorbed from the PoePowerController lineage) --------------
+
+
+def _budget_fake(monkeypatch, budget, consumption, port_budget):
+    """Switch reporting full poe-info docs (budget fields present)."""
+    state = {"status": "Delivering power", "consumption": 5.0}
+
+    def run(args, **kwargs):
+        cmd = args[-1]
+        if "poe manage" in cmd:
+            return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+        if "poe info" in cmd:
+            import json
+
+            doc = {
+                "budget": budget,
+                "consumption": consumption,
+                "ports": {"lan5": {**state, "power_budget": port_budget}},
+            }
+            return subprocess.CompletedProcess(
+                args=[], returncode=0, stdout=json.dumps(doc), stderr=""
+            )
+        raise AssertionError(f"unexpected switch command: {cmd}")
+
+    monkeypatch.setattr(zyxel_poe.subprocess, "run", run)
+
+
+def test_on_warns_when_projected_past_budget(monkeypatch, caplog):
+    _budget_fake(monkeypatch, budget=40.0, consumption=27.6, port_budget=15.4)
+    with caplog.at_level("WARNING"):
+        make_driver().on()
+    assert any("load-shed" in r.message for r in caplog.records)
+
+
+def test_on_silent_within_budget(monkeypatch, caplog):
+    _budget_fake(monkeypatch, budget=65.0, consumption=27.6, port_budget=15.4)
+    with caplog.at_level("WARNING"):
+        make_driver().on()
+    assert not any("load-shed" in r.message for r in caplog.records)
+
+
+def test_off_skips_budget_guard(monkeypatch):
+    # off() never load-sheds — the manage must be the FIRST switch call
+    # (the verify polls that follow are legitimate).
+    calls = []
+
+    def run(args, **kwargs):
+        cmd = args[-1]
+        calls.append(cmd)
+        if "poe manage" in cmd:
+            return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+        if "poe info" in cmd:
+            import json
+
+            return subprocess.CompletedProcess(
+                args=[],
+                returncode=0,
+                stdout=json.dumps({"ports": {"lan5": {"status": "Disabled"}}}),
+                stderr="",
+            )
+        raise AssertionError(f"unexpected switch command: {cmd}")
+
+    monkeypatch.setattr(zyxel_poe.subprocess, "run", run)
+    make_driver().off()
+    assert calls[0].startswith("ubus call poe manage")
