@@ -6,13 +6,12 @@ Supports multiple reset strategies for different board types:
 - manual: Operator presses physical BOOT+RST buttons
 """
 
-import attr
 import logging
 import sys
 
+import attr
 from labgrid import target_factory
 from labgrid.driver import Driver
-from labgrid.protocol.commandprotocol import CommandProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -110,9 +109,5 @@ class EspFlashDriver(Driver):
         firmware has the CDC RST handler installed.
         """
         if self.reset_method != "firmware_rst":
-            raise NotImplementedError(
-                f"reset_app requires firmware_rst, got {self.reset_method}"
-            )
-        self.shell.run_check(
-            f"echo RST > {self.serial_port}"
-        )
+            raise NotImplementedError(f"reset_app requires firmware_rst, got {self.reset_method}")
+        self.shell.run_check(f"echo RST > {self.serial_port}")

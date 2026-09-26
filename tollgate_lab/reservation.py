@@ -223,8 +223,11 @@ class BoardReservation:
 
     def __enter__(self) -> dict:
         self.entry = reserve(
-            self.serial, self.project, self.ttl_secs,
-            self.reservation_dir, self.note,
+            self.serial,
+            self.project,
+            self.ttl_secs,
+            self.reservation_dir,
+            self.note,
         )
         return self.entry
 

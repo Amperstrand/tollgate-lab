@@ -7,6 +7,7 @@ Import this in your conftest.py:
 """
 
 import os
+
 import pytest
 
 
@@ -26,5 +27,6 @@ def router_user():
 def cloud_provider():
     """Auto-detected cloud provider name."""
     from tollgate_lab.cloud import list_providers
+
     providers = list_providers()
     return providers[0] if providers else "qemu"

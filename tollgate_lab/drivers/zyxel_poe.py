@@ -109,12 +109,18 @@ MANAGE_ATTEMPTS = 2
 
 #: Reuse one authenticated connection across verification polls.
 SSH_OPTS = (
-    "-o", "BatchMode=yes",
-    "-o", "ConnectTimeout=10",
-    "-o", "StrictHostKeyChecking=accept-new",
-    "-o", "ControlMaster=auto",
-    "-o", "ControlPath=/tmp/tlab-poe-%r@%h:%p",
-    "-o", "ControlPersist=30s",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "ConnectTimeout=10",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/tmp/tlab-poe-%r@%h:%p",
+    "-o",
+    "ControlPersist=30s",
 )
 
 
@@ -178,7 +184,8 @@ class ZyxelPoEDriver(Driver, PowerResetMixin, PowerProtocol):
     def _ssh(self, command):
         """Run a command on the switch via SSH (key auth only)."""
         args = [
-            "ssh", *SSH_OPTS,
+            "ssh",
+            *SSH_OPTS,
             f"{self.port.username}@{self.port.host}",
             command,
         ]
@@ -292,16 +299,17 @@ class ZyxelPoEDriver(Driver, PowerResetMixin, PowerProtocol):
                 "poe %s: enabling projects %.1fW over the %.1fW budget "
                 "(port allocation %.1fW) — the MCU may load-shed OTHER "
                 "ports by priority",
-                self.port.port, projected, budget, port_budget,
+                self.port.port,
+                projected,
+                budget,
+                port_budget,
             )
 
     def _set(self, enable):
         self._assert_not_protected()
         if enable:
             self._budget_guard()
-        payload = json.dumps(
-            {"port": self.port.port, "action": "enable" if enable else "disable"}
-        )
+        payload = json.dumps({"port": self.port.port, "action": "enable" if enable else "disable"})
         for attempt in range(1, MANAGE_ATTEMPTS + 1):
             self._ssh(f"ubus call poe manage '{payload}'")
             try:
@@ -313,7 +321,8 @@ class ZyxelPoEDriver(Driver, PowerResetMixin, PowerProtocol):
                     raise
                 self.logger.warning(
                     "poe manage dropped (attempt %d/%d) — retrying once",
-                    attempt, MANAGE_ATTEMPTS,
+                    attempt,
+                    MANAGE_ATTEMPTS,
                 )
 
     # -- PowerProtocol ------------------------------------------------------

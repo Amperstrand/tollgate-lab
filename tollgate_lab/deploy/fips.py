@@ -5,7 +5,6 @@ and installs it on a router via SSH.
 """
 
 import logging
-import os
 import subprocess
 from pathlib import Path
 
@@ -33,12 +32,19 @@ def download_fips_ipk(
     """
     dest = Path(dest_dir) / f"fips-{arch}.ipk"
     cmd = [
-        "gh", "run", "download",
-        "-R", FIPS_REPO,
-        "--workflow", FIPS_WORKFLOW,
-        "--branch", branch,
-        "-n", f"fips-{arch}",
-        "-D", str(dest.parent / f"fips-dl-{arch}"),
+        "gh",
+        "run",
+        "download",
+        "-R",
+        FIPS_REPO,
+        "--workflow",
+        FIPS_WORKFLOW,
+        "--branch",
+        branch,
+        "-n",
+        f"fips-{arch}",
+        "-D",
+        str(dest.parent / f"fips-dl-{arch}"),
     ]
     log.info(f"Downloading FIPS .ipk for {arch}...")
     subprocess.run(cmd, check=True, capture_output=True)
@@ -79,15 +85,17 @@ def install_fips_on_router(
     def ssh(cmd):
         return subprocess.run(
             ["ssh", "-o", "StrictHostKeyChecking=no", ssh_target, cmd],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
 
     # Upload .ipk
     log.info(f"Uploading {ipk_path} to {ssh_target}...")
     subprocess.run(
-        ["scp", "-o", "StrictHostKeyChecking=no", str(ipk_path),
-         f"{ssh_target}:/tmp/fips.ipk"],
-        check=True, timeout=120,
+        ["scp", "-o", "StrictHostKeyChecking=no", str(ipk_path), f"{ssh_target}:/tmp/fips.ipk"],
+        check=True,
+        timeout=120,
     )
 
     # Install
@@ -98,6 +106,7 @@ def install_fips_on_router(
     # Write config if provided
     if config:
         import yaml
+
         config_str = yaml.dump(config, default_flow_style=False)
         ssh(f"mkdir -p /etc/fips && cat > /etc/fips/fips.yaml << 'EOF'\n{config_str}\nEOF")
 
@@ -106,6 +115,7 @@ def install_fips_on_router(
     ssh("service fips start || /etc/init.d/fips start || true")
 
     import time
+
     time.sleep(3)
 
     # Verify

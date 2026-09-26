@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import os
+
 from tollgate_lab.cloud.provider import VMConfig, VMInstance
 
 log = logging.getLogger(__name__)
@@ -18,7 +19,10 @@ class GCPProvider:
     def __init__(self):
         if not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
             raise RuntimeError("GOOGLE_APPLICATION_CREDENTIALS not set")
-        log.warning("GCPProvider is a stub — use physical-router-test-automation's cloud-lab.py for full functionality")
+        log.warning(
+            "GCPProvider is a stub — use physical-router-test-automation's cloud-lab.py "
+            "for full functionality"
+        )
 
     def create(self, config: VMConfig) -> VMInstance:
         raise NotImplementedError("Use scripts/cloud-lab.py from physical-router-test-automation")

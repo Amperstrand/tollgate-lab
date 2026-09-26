@@ -20,8 +20,7 @@ class TelemetryGateError(Exception):
 
     def __init__(self, matched: int, min_lines: int, window_s: float) -> None:
         super().__init__(
-            f"telemetry gate failed: {matched} matching lines in {window_s:.0f}s "
-            f"(need {min_lines})"
+            f"telemetry gate failed: {matched} matching lines in {window_s:.0f}s (need {min_lines})"
         )
         self.matched = matched
         self.min_lines = min_lines

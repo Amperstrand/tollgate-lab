@@ -34,17 +34,28 @@ def install_tollgate_on_router(
     def ssh(cmd):
         return subprocess.run(
             ["ssh", "-o", "StrictHostKeyChecking=no", ssh_target, cmd],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
 
     # Download CI artifact
     log.info(f"Downloading TollGate from {branch} branch...")
-    subprocess.run([
-        "gh", "run", "download",
-        "-R", TOLLGATE_REPO,
-        "--branch", branch,
-        "-D", "/tmp/tollgate-dl",
-    ], check=True, capture_output=True)
+    subprocess.run(
+        [
+            "gh",
+            "run",
+            "download",
+            "-R",
+            TOLLGATE_REPO,
+            "--branch",
+            branch,
+            "-D",
+            "/tmp/tollgate-dl",
+        ],
+        check=True,
+        capture_output=True,
+    )
 
     # Find .ipk files
     ipk_files = list(Path("/tmp/tollgate-dl").rglob("*.ipk"))
@@ -70,10 +81,11 @@ def install_tollgate_on_router(
     ipk_path = matching[0]
 
     # Upload and install
-    subprocess.run([
-        "scp", "-o", "StrictHostKeyChecking=no",
-        str(ipk_path), f"{ssh_target}:/tmp/tollgate.ipk"
-    ], check=True, timeout=120)
+    subprocess.run(
+        ["scp", "-o", "StrictHostKeyChecking=no", str(ipk_path), f"{ssh_target}:/tmp/tollgate.ipk"],
+        check=True,
+        timeout=120,
+    )
 
     log.info("Installing TollGate...")
     result = ssh("opkg install /tmp/tollgate.ipk --force-reinstall 2>&1")
@@ -83,6 +95,7 @@ def install_tollgate_on_router(
     ssh(f"service {TOLLGATE_SERVICE} restart || true")
 
     import time
+
     time.sleep(3)
 
     result = ssh(f"service {TOLLGATE_SERVICE} status")

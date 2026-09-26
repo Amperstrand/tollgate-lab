@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import os
 import logging
-import subprocess
-import time
+import os
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Protocol
 
 log = logging.getLogger(__name__)
@@ -16,6 +13,7 @@ log = logging.getLogger(__name__)
 @dataclass
 class VMConfig:
     """Configuration for a cloud lab VM."""
+
     name: str = "tollgate-lab-vm"
     image: str = "debian-12"
     machine_type: str = "n2-standard-4"
@@ -29,6 +27,7 @@ class VMConfig:
 @dataclass
 class VMInstance:
     """A running cloud lab VM."""
+
     name: str
     external_ip: str
     internal_ip: str
@@ -83,12 +82,15 @@ def get_provider(name: str | None = None) -> VMProvider | None:
 
     if name == "shc":
         from tollgate_lab.cloud.shc import SHCProvider
+
         return SHCProvider()
     elif name == "gcp":
         from tollgate_lab.cloud.gcp import GCPProvider
+
         return GCPProvider()
     elif name == "qemu":
         from tollgate_lab.cloud.qemu import QEMUProvider
+
         return QEMUProvider()
 
     raise ValueError(f"Unknown provider: {name}")

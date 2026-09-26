@@ -13,7 +13,9 @@ import time
 def _ssh_run(host, cmd, timeout=30, stdin_data=None):
     kwargs = dict(
         args=["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", f"ubuntu@{host}", cmd],
-        capture_output=True, text=True, timeout=timeout,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
     )
     if stdin_data is not None:
         kwargs["input"] = stdin_data
@@ -90,7 +92,8 @@ class SSHEsp32Adapter:
 
         binary_data = subprocess.run(
             ["ssh", "-o", "BatchMode=yes", f"ubuntu@{build_host}", f"cat {binary_path}"],
-            capture_output=True, timeout=30,
+            capture_output=True,
+            timeout=30,
         ).stdout
 
         _ssh_run(self._host, f"cat > {binary_path}", timeout=30, stdin_data=binary_data)
@@ -111,7 +114,7 @@ class SSHFipsAdapter:
         self._host = host
         self.service_name = service_name
         self.ble_adapter = ble_adapter
-        self._fipsctl = f"/home/ubuntu/src/fips/target/release/fipsctl"
+        self._fipsctl = "/home/ubuntu/src/fips/target/release/fipsctl"
 
     def restart(self):
         _ssh_run(self._host, f"sudo hciconfig {self.ble_adapter} down", timeout=10)
@@ -173,6 +176,4 @@ class SSHFirmwareBuilder:
         if "BUILD_OK" not in output:
             raise RuntimeError(f"Firmware build failed: {output[-300:]}")
 
-        return (
-            f"{self._repo}/target/xtensa-esp32-none-elf/release/microfips-esp32-l2cap"
-        )
+        return f"{self._repo}/target/xtensa-esp32-none-elf/release/microfips-esp32-l2cap"

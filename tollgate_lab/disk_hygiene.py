@@ -164,12 +164,14 @@ def main(argv: list[str] | None = None) -> int:
     import argparse
 
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--min-free", type=float, default=DEFAULT_MIN_FREE_GB,
-                    help="target free space in GB (default %(default)s)")
-    ap.add_argument("--force", action="store_true",
-                    help="prune even while build processes run")
-    ap.add_argument("--json", action="store_true", dest="as_json",
-                    help="print the report as JSON")
+    ap.add_argument(
+        "--min-free",
+        type=float,
+        default=DEFAULT_MIN_FREE_GB,
+        help="target free space in GB (default %(default)s)",
+    )
+    ap.add_argument("--force", action="store_true", help="prune even while build processes run")
+    ap.add_argument("--json", action="store_true", dest="as_json", help="print the report as JSON")
     args = ap.parse_args(argv)
 
     if args.force:
@@ -191,8 +193,10 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(report.__dict__))
     else:
         state = "OK" if report.ok else "LOW"
-        print(f"disk hygiene [{state}] free {report.free_before_gb:.1f} -> "
-              f"{report.free_after_gb:.1f} GB (min {report.min_free_gb:.0f})")
+        print(
+            f"disk hygiene [{state}] free {report.free_before_gb:.1f} -> "
+            f"{report.free_after_gb:.1f} GB (min {report.min_free_gb:.0f})"
+        )
         for action in report.actions:
             print(f"  - {action}")
     return 0 if report.ok else 1

@@ -1,13 +1,10 @@
 """Driver for managing the fips system service (systemd / launchd)."""
 
-import re
 import time
 
 import attr
-
 from labgrid import target_factory
 from labgrid.driver import Driver
-from labgrid.protocol.commandprotocol import CommandProtocol
 
 
 @target_factory.reg_driver
@@ -90,9 +87,7 @@ class FipsServiceDriver(Driver):
             if "inactive" in output:
                 return "stopped"
             return "unknown"
-        output = self.shell.run_check(
-            f"sudo launchctl print {self._launchd_target()}"
-        )
+        output = self.shell.run_check(f"sudo launchctl print {self._launchd_target()}")
         if "state = running" in output:
             return "running"
         return "stopped"

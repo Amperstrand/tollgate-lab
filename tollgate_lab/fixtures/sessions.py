@@ -1,6 +1,7 @@
 """Pytest fixtures for hardware testing via tollgate-lab."""
 
 import os
+
 import pytest
 
 
@@ -46,6 +47,7 @@ def fips_daemon(router_session):
     """Ensure FIPS daemon is running on the router."""
     router_session.run("service fips start || true")
     import time
+
     time.sleep(3)
 
     result = router_session.run("service fips status")

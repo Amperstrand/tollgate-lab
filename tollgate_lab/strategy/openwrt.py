@@ -29,6 +29,7 @@ log = logging.getLogger(__name__)
 
 class OpenWrtState(enum.Enum):
     """Router lifecycle states."""
+
     unknown = 0
     boot = 1
     shell = 2
@@ -91,7 +92,7 @@ class OpenWrtStrategy(Strategy):
         if self.state is OpenWrtState.boot:
             self.transition(OpenWrtState.boot)
 
-        for attempt in range(30):
+        for _attempt in range(30):
             try:
                 self.ssh.run("echo ok", timeout=5)
                 log.info("SSH access established")

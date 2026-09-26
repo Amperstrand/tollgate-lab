@@ -6,8 +6,8 @@ labgrid's CommandProtocol for integration with labgrid strategies.
 
 import logging
 import subprocess
-import attr
 
+import attr
 from labgrid import target_factory
 from labgrid.driver import Driver
 from labgrid.protocol.commandprotocol import CommandProtocol
@@ -51,9 +51,13 @@ class RouterDriver(Driver, CommandProtocol):
 
         result = subprocess.run(
             [
-                "ssh", "-o", "BatchMode=yes",
-                "-o", "ConnectTimeout=10",
-                "-o", "StrictHostKeyChecking=no",
+                "ssh",
+                "-o",
+                "BatchMode=yes",
+                "-o",
+                "ConnectTimeout=10",
+                "-o",
+                "StrictHostKeyChecking=no",
                 f"{user}@{host}",
                 command,
             ],
@@ -75,9 +79,7 @@ class RouterDriver(Driver, CommandProtocol):
         """
         stdout, stderr, exitcode = self.run(command, timeout)
         if exitcode != 0:
-            raise subprocess.CalledProcessError(
-                exitcode, command, "\n".join(stderr)
-            )
+            raise subprocess.CalledProcessError(exitcode, command, "\n".join(stderr))
         return stdout
 
     @step(args=["command"])
@@ -96,8 +98,11 @@ class RouterDriver(Driver, CommandProtocol):
 
         subprocess.run(
             [
-                "scp", "-o", "BatchMode=yes",
-                "-o", "StrictHostKeyChecking=no",
+                "scp",
+                "-o",
+                "BatchMode=yes",
+                "-o",
+                "StrictHostKeyChecking=no",
                 source,
                 f"{user}@{host}:{dest}",
             ],
@@ -112,8 +117,11 @@ class RouterDriver(Driver, CommandProtocol):
 
         subprocess.run(
             [
-                "scp", "-o", "BatchMode=yes",
-                "-o", "StrictHostKeyChecking=no",
+                "scp",
+                "-o",
+                "BatchMode=yes",
+                "-o",
+                "StrictHostKeyChecking=no",
                 f"{user}@{host}:{source}",
                 dest,
             ],

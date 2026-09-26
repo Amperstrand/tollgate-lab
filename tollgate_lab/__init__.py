@@ -15,6 +15,22 @@ Quick start:
 __version__ = "0.1.0"
 
 # Public API — stable interface
+from tollgate_lab.cyd_qr import QR_WINNING_CAP as QR_WINNING_CAP
+from tollgate_lab.cyd_qr import CydError as CydError
+from tollgate_lab.cyd_qr import CydQrClient as CydQrClient
+from tollgate_lab.cyd_qr import arm_winning_config as arm_winning_config
+from tollgate_lab.disk_hygiene import (
+    HygieneReport as HygieneReport,
+)
+from tollgate_lab.disk_hygiene import (
+    disk_headroom_gb as disk_headroom_gb,
+)
+from tollgate_lab.disk_hygiene import (
+    ensure_run_headroom as ensure_run_headroom,
+)
+from tollgate_lab.hardware import (
+    AmbiguousPortError as AmbiguousPortError,
+)
 from tollgate_lab.hardware import (
     BenchLock as BenchLock,
 )
@@ -23,9 +39,6 @@ from tollgate_lab.hardware import (
 )
 from tollgate_lab.hardware import (
     HardwareLock as HardwareLock,
-)
-from tollgate_lab.hardware import (
-    AmbiguousPortError as AmbiguousPortError,
 )
 from tollgate_lab.hardware import (
     PortAbsentError as PortAbsentError,
@@ -37,28 +50,19 @@ from tollgate_lab.hardware import (
     TelemetryGateError as TelemetryGateError,
 )
 from tollgate_lab.hardware import (
+    acquire_bench_lock as acquire_bench_lock,
+)
+from tollgate_lab.hardware import (
     assert_telemetry as assert_telemetry,
 )
 from tollgate_lab.hardware import (
     policy_for as policy_for,
 )
 from tollgate_lab.hardware import (
-    resolve_port as resolve_port,
-)
-from tollgate_lab.hardware import (
-    acquire_bench_lock as acquire_bench_lock,
-)
-from tollgate_lab.hardware import (
     read_bench_lock as read_bench_lock,
 )
-from tollgate_lab.disk_hygiene import (
-    HygieneReport as HygieneReport,
-)
-from tollgate_lab.disk_hygiene import (
-    disk_headroom_gb as disk_headroom_gb,
-)
-from tollgate_lab.disk_hygiene import (
-    ensure_run_headroom as ensure_run_headroom,
+from tollgate_lab.hardware import (
+    resolve_port as resolve_port,
 )
 from tollgate_lab.reservation import (
     BoardReservation as BoardReservation,
@@ -66,17 +70,6 @@ from tollgate_lab.reservation import (
 from tollgate_lab.reservation import (
     ReservationError as ReservationError,
 )
-from tollgate_lab.reservation import (
-    release as release_board,
-)
-from tollgate_lab.reservation import (
-    reserve as reserve_board,
-)
-from tollgate_lab.reservation import (
-    status as board_status,
-)
-
-from tollgate_lab.cyd_qr import CydError as CydError
-from tollgate_lab.cyd_qr import CydQrClient as CydQrClient
-from tollgate_lab.cyd_qr import QR_WINNING_CAP as QR_WINNING_CAP
-from tollgate_lab.cyd_qr import arm_winning_config as arm_winning_config
+from tollgate_lab.reservation import release as release_board  # noqa: F401 — public re-export
+from tollgate_lab.reservation import reserve as reserve_board  # noqa: F401 — public re-export
+from tollgate_lab.reservation import status as board_status  # noqa: F401 — public re-export

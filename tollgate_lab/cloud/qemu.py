@@ -7,9 +7,7 @@ No cloud credentials needed — runs entirely locally.
 from __future__ import annotations
 
 import logging
-import os
 import subprocess
-import time
 from pathlib import Path
 
 from tollgate_lab.cloud.provider import VMConfig, VMInstance
@@ -50,7 +48,7 @@ class QEMUProvider:
             internal_ip="10.99.99.1",
             status="running",
             provider="qemu",
-            ssh_command=f"ssh root@127.0.0.1",
+            ssh_command="ssh root@127.0.0.1",
         )
 
     def destroy(self, name: str) -> None:
@@ -61,15 +59,13 @@ class QEMUProvider:
             subprocess.run(["pkill", "-f", f"name {name}"], capture_output=True)
             # Clean up
             import shutil
+
             shutil.rmtree(vm_dir, ignore_errors=True)
         log.info(f"Destroyed QEMU VM: {name}")
 
     def status(self, name: str) -> str:
         """Check if QEMU process is running."""
-        result = subprocess.run(
-            ["pgrep", "-f", f"name {name}"],
-            capture_output=True
-        )
+        result = subprocess.run(["pgrep", "-f", f"name {name}"], capture_output=True)
         return "running" if result.returncode == 0 else "stopped"
 
     def list_vms(self, label_filter: str = "") -> list[VMInstance]:
@@ -78,13 +74,15 @@ class QEMUProvider:
         for vm_dir in self.workdir.iterdir():
             if vm_dir.is_dir():
                 status = self.status(vm_dir.name)
-                vms.append(VMInstance(
-                    name=vm_dir.name,
-                    external_ip="127.0.0.1",
-                    internal_ip="",
-                    status=status,
-                    provider="qemu",
-                ))
+                vms.append(
+                    VMInstance(
+                        name=vm_dir.name,
+                        external_ip="127.0.0.1",
+                        internal_ip="",
+                        status=status,
+                        provider="qemu",
+                    )
+                )
         return vms
 
     def extend_lease(self, name: str, minutes: int = 60) -> None:

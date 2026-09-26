@@ -1,5 +1,6 @@
-import logging
+import contextlib
 import json
+import logging
 import os
 import shutil
 import subprocess
@@ -118,10 +119,14 @@ def _ssh_env():
 
 def _scp_to_router(router, local_path, remote_path):
     ssh_opts = [
-        "-o", "StrictHostKeyChecking=no",
-        "-o", "UserKnownHostsFile=/dev/null",
-        "-o", "ConnectTimeout=10",
-        "-o", "LogLevel=ERROR",
+        "-o",
+        "StrictHostKeyChecking=no",
+        "-o",
+        "UserKnownHostsFile=/dev/null",
+        "-o",
+        "ConnectTimeout=10",
+        "-o",
+        "LogLevel=ERROR",
     ]
     if router.identity_file:
         cmd = ["scp", "-O", "-i", router.identity_file] + ssh_opts
@@ -138,7 +143,9 @@ def _scp_to_router(router, local_path, remote_path):
     cmd += [str(local_path), f"root@{router.host}:{remote_path}"]
     r = subprocess.run(cmd, capture_output=True, timeout=120, env=_ssh_env())
     if r.returncode != 0:
-        raise RuntimeError(f"SCP failed (exit {r.returncode}): {r.stderr.decode(errors='replace').strip()[:300]}")
+        raise RuntimeError(
+            f"SCP failed (exit {r.returncode}): {r.stderr.decode(errors='replace').strip()[:300]}"
+        )
 
 
 def _transfer_to_router(router, local_path, remote_path):
@@ -167,8 +174,8 @@ def _repack_ar_to_targz(ipk_path: Path) -> None:
 
     If the file is already gzip tar format, this is a no-op.
     """
-    import tarfile
     import io
+    import tarfile
 
     with open(ipk_path, "rb") as f:
         data = f.read()
@@ -188,7 +195,7 @@ def _repack_ar_to_targz(ipk_path: Path) -> None:
     while pos < len(data):
         if pos + 60 > len(data):
             break
-        header = data[pos:pos + 60]
+        header = data[pos : pos + 60]
         name_field = header[0:16].decode("ascii", errors="replace")
         size_field = header[48:58].decode("ascii", errors="replace").strip()
         if not size_field:
@@ -215,7 +222,8 @@ def _repack_ar_to_targz(ipk_path: Path) -> None:
 
     log.info(
         "Repacking ar→targz: %s (members: %s)",
-        ipk_path.name, ", ".join(members.keys()),
+        ipk_path.name,
+        ", ".join(members.keys()),
     )
 
     # Write gzip tar with ./ prefix (matching OpenWrt's buildroot output)
@@ -229,8 +237,12 @@ def _repack_ar_to_targz(ipk_path: Path) -> None:
     with open(ipk_path, "wb") as f:
         f.write(buf.getvalue())
 
-    log.info("Repacked %s: %d bytes ar → %d bytes tar.gz",
-             ipk_path.name, len(data), ipk_path.stat().st_size)
+    log.info(
+        "Repacked %s: %d bytes ar → %d bytes tar.gz",
+        ipk_path.name,
+        len(data),
+        ipk_path.stat().st_size,
+    )
 
 
 def _parse_version(opkg_line):
@@ -241,27 +253,29 @@ def _parse_version(opkg_line):
 
 
 def _write_rust_compat_config(router):
-    TEST_MINT_URL = os.environ.get("TOLLGATE_TEST_MINT_URL", "https://testmint.nut.cash")
-    DEFAULT_STEP_SIZE_MS = int(os.environ.get("TOLLGATE_DEFAULT_STEP_SIZE_MS", "1000"))
+    test_mint_url = os.environ.get("TOLLGATE_TEST_MINT_URL", "https://testmint.nut.cash")
+    default_step_size_ms = int(os.environ.get("TOLLGATE_DEFAULT_STEP_SIZE_MS", "1000"))
     config = {
-        "accepted_mints": [{
-            "url": TEST_MINT_URL,
-            "min_balance": 0,
-            "balance_tolerance_percent": 0,
-            "payout_interval_seconds": 60,
-            "min_payout_amount": 0,
-            "price_per_step": 1,
-            "price_unit": "sats",
-            "purchase_min_steps": 0,
-        }],
-        "step_size": DEFAULT_STEP_SIZE_MS,
+        "accepted_mints": [
+            {
+                "url": test_mint_url,
+                "min_balance": 0,
+                "balance_tolerance_percent": 0,
+                "payout_interval_seconds": 60,
+                "min_payout_amount": 0,
+                "price_per_step": 1,
+                "price_unit": "sats",
+                "purchase_min_steps": 0,
+            }
+        ],
+        "step_size": default_step_size_ms,
         "metric": "milliseconds",
         "profit_share": [
             {"factor": 1.0, "identity": "operator"},
         ],
     }
     router.write_remote_json("/etc/tollgate/config.json", config)
-    log.info("Wrote Rust-compat config.json with mint=%s", TEST_MINT_URL)
+    log.info("Wrote Rust-compat config.json with mint=%s", test_mint_url)
 
 
 def _wait_for_health(router, timeout=60):
@@ -310,11 +324,17 @@ def _list_workflow_runs(
     limit: int = 10,
 ) -> list[dict]:
     cmd = [
-        "gh", "run", "list",
-        "--repo", repo,
-        "--workflow", workflow,
-        "--limit", str(limit),
-        "--json", "databaseId,status,conclusion,headBranch,headSha",
+        "gh",
+        "run",
+        "list",
+        "--repo",
+        repo,
+        "--workflow",
+        workflow,
+        "--limit",
+        str(limit),
+        "--json",
+        "databaseId,status,conclusion,headBranch,headSha",
     ]
     if commit:
         cmd.extend(["--commit", commit])
@@ -339,10 +359,18 @@ def _run_has_arch_artifact(repo: str, run_id: str, arch: str) -> bool:
     """
     try:
         r = subprocess.run(
-            ["gh", "api",
-             f"repos/{repo}/actions/runs/{run_id}/artifacts",
-             "--paginate", "-q", ".artifacts[].name"],
-            capture_output=True, text=True, timeout=30, check=False,
+            [
+                "gh",
+                "api",
+                f"repos/{repo}/actions/runs/{run_id}/artifacts",
+                "--paginate",
+                "-q",
+                ".artifacts[].name",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
         )
         if r.returncode == 0:
             for line in r.stdout.strip().splitlines():
@@ -356,12 +384,16 @@ def _run_has_arch_artifact(repo: str, run_id: str, arch: str) -> bool:
     with tempfile.TemporaryDirectory(prefix="tollgate-artifact-check-") as tmp:
         r = subprocess.run(
             ["gh", "run", "download", run_id, "--repo", repo, "--dir", tmp],
-            capture_output=True, text=True, timeout=300, check=False,
+            capture_output=True,
+            text=True,
+            timeout=300,
+            check=False,
         )
         if r.returncode != 0:
             return False
         matches = [
-            p for p in Path(tmp).rglob("*.ipk")
+            p
+            for p in Path(tmp).rglob("*.ipk")
             if p.is_file() and arch in p.name and "upx" not in p.name
         ]
         return bool(matches)
@@ -371,10 +403,15 @@ def _watch_run(repo: str, run_id: str, timeout_s: int) -> bool:
     """Wait for a workflow run to finish. Returns True if watch succeeded."""
     r = subprocess.run(
         [
-            "gh", "run", "watch", run_id,
-            "--repo", repo,
+            "gh",
+            "run",
+            "watch",
+            run_id,
+            "--repo",
+            repo,
             "--exit-status",
-            "--interval", "15",
+            "--interval",
+            "15",
         ],
         capture_output=True,
         text=True,
@@ -425,22 +462,27 @@ def ensure_artifact(
         # gh run list --commit sometimes returns empty for older commits;
         # fall back to branch-scoped search and filter by SHA client-side.
         if commit and not runs and branch:
-            try:
+            with contextlib.suppress(RuntimeError):
                 runs = _list_workflow_runs(repo, workflow, branch=branch, limit=15)
-            except RuntimeError:
-                pass
             if runs:
                 short = commit[:7] if len(commit) >= 7 else commit
-                runs = [r for r in runs if (
-                    (r.get("headSha") or "").startswith(short)
-                    or commit.startswith((r.get("headSha") or "")[:len(commit)])
-                )]
+                runs = [
+                    r
+                    for r in runs
+                    if (
+                        (r.get("headSha") or "").startswith(short)
+                        or commit.startswith((r.get("headSha") or "")[: len(commit)])
+                    )
+                ]
 
         if not runs:
             remaining = int(deadline - time.time())
             log.info(
                 "No workflow runs yet for %s@%s (workflow=%r). Waiting... (%ds left)",
-                repo, branch or commit, workflow, max(remaining, 0),
+                repo,
+                branch or commit,
+                workflow,
+                max(remaining, 0),
             )
             time.sleep(min(30, max(remaining, 1)))
             continue
@@ -460,7 +502,10 @@ def ensure_artifact(
                 conclusion = ""
                 view = subprocess.run(
                     ["gh", "run", "view", run_id, "--repo", repo, "--json", "conclusion,status"],
-                    capture_output=True, text=True, timeout=30, check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    check=False,
                 )
                 if view.returncode == 0:
                     try:
@@ -471,9 +516,15 @@ def ensure_artifact(
                         pass
 
             if status == "completed" and conclusion not in ("", "success"):
-                log.info("Run %s has conclusion=%s — checking for usable artifacts anyway", run_id, conclusion)
+                log.info(
+                    "Run %s has conclusion=%s — checking for usable artifacts anyway",
+                    run_id,
+                    conclusion,
+                )
                 if _run_has_arch_artifact(repo, run_id, arch):
-                    log.info("Artifact ready: run %s has %s .ipk (despite overall failure)", run_id, arch)
+                    log.info(
+                        "Artifact ready: run %s has %s .ipk (despite overall failure)", run_id, arch
+                    )
                     return run_id
                 continue
 
@@ -529,8 +580,15 @@ def _nak_req(args: list[str], timeout: int = 30) -> list[dict]:
     return events
 
 
-def _event_matches(event: dict, *, arch: str, fmt: str, branch: str, commit: str | None,
-                   content_tags: dict[str, list[str]]) -> tuple[dict | None, int]:
+def _event_matches(
+    event: dict,
+    *,
+    arch: str,
+    fmt: str,
+    branch: str,
+    commit: str | None,
+    content_tags: dict[str, list[str]],
+) -> tuple[dict | None, int]:
     """Return (artifact_dict_or_None, created_at) if the event matches filters.
 
     ``content_tags`` is the parsed tag dict for one event; the function reads
@@ -542,7 +600,7 @@ def _event_matches(event: dict, *, arch: str, fmt: str, branch: str, commit: str
     if archs and arch not in archs and (len(archs) == 1 and archs[0] != arch):
         # 30078 content uses "architecture" (scalar); 1063 uses "A" (tag list).
         pass
-    arch_val = (archs[0] if archs else content_tags.get("architecture", ""))
+    arch_val = archs[0] if archs else content_tags.get("architecture", "")
     if arch_val != arch:
         return None, 0
     comp = (content_tags.get("compression") or ["none"])[0]
@@ -562,7 +620,9 @@ def _event_matches(event: dict, *, arch: str, fmt: str, branch: str, commit: str
     artifact = {
         "url": (content_tags.get("url") or content_tags.get("urls") or [""])[0],
         "filename": filename,
-        "sha256": (content_tags.get("x") or content_tags.get("ox") or content_tags.get("sha256") or [""])[0],
+        "sha256": (
+            content_tags.get("x") or content_tags.get("ox") or content_tags.get("sha256") or [""]
+        )[0],
         "architecture": arch,
         "format": (content_tags.get("format") or ["ipk"])[0],
         "compression": comp,
@@ -583,7 +643,9 @@ def _event_matches(event: dict, *, arch: str, fmt: str, branch: str, commit: str
     return artifact, ts
 
 
-def _resolve_blossom_binary(commit: str | None, arch: str, fmt: str = "", branch: str = "") -> dict | None:
+def _resolve_blossom_binary(
+    commit: str | None, arch: str, fmt: str = "", branch: str = ""
+) -> dict | None:
     """Resolve a deployable artifact from Blossom via Nostr.
 
     Primary source: kind **1063** NIP-94 file-metadata events — these are
@@ -610,11 +672,11 @@ def _resolve_blossom_binary(commit: str | None, arch: str, fmt: str = "", branch
     # No -a (author) filter: the CI bot key was rotated, and we rely on the
     # n=tollgate-wrt tag to identify TollGate packages. SHA256 content
     # addressing protects against forged events.
-    for e in _nak_req(["-k", "1063",
-                       "-t", "n=tollgate-wrt", "-l", "120"]):
+    for e in _nak_req(["-k", "1063", "-t", "n=tollgate-wrt", "-l", "120"]):
         tags = _tags_as_dict(e.get("tags", []))
-        art, ts = _event_matches(e, arch=arch, fmt=fmt, branch=branch,
-                                 commit=commit, content_tags=tags)
+        art, ts = _event_matches(
+            e, arch=arch, fmt=fmt, branch=branch, commit=commit, content_tags=tags
+        )
         if not art:
             continue
         if commit:
@@ -641,8 +703,9 @@ def _resolve_blossom_binary(commit: str | None, arch: str, fmt: str = "", branch
         rtag = [t[1] for t in e.get("tags", []) if isinstance(t, list) and t and t[0] == "r"]
         if rtag:
             flat["r"] = rtag
-        art, ts = _event_matches(e, arch=arch, fmt=fmt, branch=branch,
-                                 commit=commit, content_tags=flat)
+        art, ts = _event_matches(
+            e, arch=arch, fmt=fmt, branch=branch, commit=commit, content_tags=flat
+        )
         if not art:
             continue
         if commit:
@@ -659,7 +722,9 @@ def _resolve_blossom_binary(commit: str | None, arch: str, fmt: str = "", branch
     return None
 
 
-def _download_blossom_binary(url: str, build_dir: Path, sha256: str = "", save_as: str = "") -> Path | None:
+def _download_blossom_binary(
+    url: str, build_dir: Path, sha256: str = "", save_as: str = ""
+) -> Path | None:
     """Download .ipk from Blossom. Tries primary URL, then falls back to
     mirror servers using the content-addressed SHA256 when the primary 404s."""
     filename = save_as or url.rsplit("/", 1)[-1]
@@ -677,23 +742,38 @@ def _download_blossom_binary(url: str, build_dir: Path, sha256: str = "", save_a
             cache_bust = f"?cb={int(time.time())}"
             subprocess.run(
                 ["curl", "-sL", "-o", str(dest), f"{try_url}{cache_bust}"],
-                timeout=120, check=True, capture_output=True,
+                timeout=120,
+                check=True,
+                capture_output=True,
             )
             if dest.exists() and dest.stat().st_size > 1000:
-                log.info("Downloaded from Blossom: %s (%d bytes) via %s",
-                         filename, dest.stat().st_size, try_url)
+                log.info(
+                    "Downloaded from Blossom: %s (%d bytes) via %s",
+                    filename,
+                    dest.stat().st_size,
+                    try_url,
+                )
                 return dest
         except Exception:
             continue
 
-    log.warning("Blossom download failed from all %d server(s): %s",
-                len(urls_to_try), ", ".join(urls_to_try))
+    log.warning(
+        "Blossom download failed from all %d server(s): %s",
+        len(urls_to_try),
+        ", ".join(urls_to_try),
+    )
     return None
 
 
-def download_artifact(branch: str, arch: str, run_id: str | None = None,
-                      repo: str | None = None, workflow: str | None = None,
-                      output_name: str | None = None, fmt: str = "") -> Path:
+def download_artifact(
+    branch: str,
+    arch: str,
+    run_id: str | None = None,
+    repo: str | None = None,
+    workflow: str | None = None,
+    output_name: str | None = None,
+    fmt: str = "",
+) -> Path:
     artifact_repo = repo or REPO
     artifact_workflow = workflow or WORKFLOW
     if BUILD_DIR.exists():
@@ -714,7 +794,8 @@ def download_artifact(branch: str, arch: str, run_id: str | None = None,
             log.info("No url in event — constructed from sha256: %s", _url)
         if _url:
             blossom_path = _download_blossom_binary(
-                _url, BUILD_DIR,
+                _url,
+                BUILD_DIR,
                 sha256=_sha,
                 save_as=blossom_binary.get("filename", ""),
             )
@@ -729,16 +810,27 @@ def download_artifact(branch: str, arch: str, run_id: str | None = None,
         for status_filter in ("success", "completed"):
             r = subprocess.run(
                 [
-                    "gh", "run", "list",
-                    "--repo", artifact_repo,
-                    "--branch", branch,
-                    "--status", status_filter,
-                    "--workflow", artifact_workflow,
-                    "--limit", "1",
-                    "--json", "databaseId,status",
-                    "--jq", ".[0].databaseId",
+                    "gh",
+                    "run",
+                    "list",
+                    "--repo",
+                    artifact_repo,
+                    "--branch",
+                    branch,
+                    "--status",
+                    status_filter,
+                    "--workflow",
+                    artifact_workflow,
+                    "--limit",
+                    "1",
+                    "--json",
+                    "databaseId,status",
+                    "--jq",
+                    ".[0].databaseId",
                 ],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             if r.returncode == 0 and r.stdout.strip():
                 run_id = r.stdout.strip()
@@ -753,15 +845,22 @@ def download_artifact(branch: str, arch: str, run_id: str | None = None,
     def _download(run: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["gh", "run", "download", run, "--repo", artifact_repo, "--dir", str(BUILD_DIR)],
-            capture_output=True, text=True, timeout=300,
+            capture_output=True,
+            text=True,
+            timeout=300,
         )
 
     log.info("Downloading artifacts from run %s", run_id)
     r = _download(run_id)
     if r.returncode != 0:
         err = r.stderr.strip() or r.stdout.strip() or "unknown gh error"
-        if "no valid artifacts" in err.lower() and not os.environ.get("TOLLGATE_DISABLE_ARTIFACT_RERUN"):
-            log.warning("No valid artifacts for run %s; trying to rerun x86_64/arch-specific build job", run_id)
+        if "no valid artifacts" in err.lower() and not os.environ.get(
+            "TOLLGATE_DISABLE_ARTIFACT_RERUN"
+        ):
+            log.warning(
+                "No valid artifacts for run %s; trying to rerun x86_64/arch-specific build job",
+                run_id,
+            )
             rerun = _rerun_arch_job(artifact_repo, run_id, arch)
             if rerun:
                 if BUILD_DIR.exists():
@@ -785,7 +884,8 @@ def download_artifact(branch: str, arch: str, run_id: str | None = None,
             if "no valid artifacts" in err.lower():
                 hint += (
                     " GitHub reports no valid downloadable artifacts; this usually means "
-                    "the run artifacts expired, were deleted, or the release/tag did not upload them. "
+                    "the run artifacts expired, were deleted, "
+                    "or the release/tag did not upload them. "
                     "For the GCP virtual lab, provide a fresh x86_64 .ipk via a new CI run/release "
                     "or use a branch with current x86_64 artifacts."
                 )
@@ -810,11 +910,18 @@ def _rerun_arch_job(repo: str, run_id: str, arch: str) -> bool:
     needle = "x86_64" if arch == "x86_64" else arch
     r = subprocess.run(
         [
-            "gh", "run", "view", run_id,
-            "--repo", repo,
-            "--json", "jobs",
+            "gh",
+            "run",
+            "view",
+            run_id,
+            "--repo",
+            repo,
+            "--json",
+            "jobs",
         ],
-        capture_output=True, text=True, timeout=30,
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     if r.returncode != 0:
         log.warning("Could not inspect run jobs for %s: %s", run_id, r.stderr.strip())
@@ -841,17 +948,23 @@ def _rerun_arch_job(repo: str, run_id: str, arch: str) -> bool:
     log.info("Rerunning job %s (%s)", job_id, name)
     rerun = subprocess.run(
         ["gh", "run", "rerun", "--repo", repo, "--job", job_id],
-        capture_output=True, text=True, timeout=30,
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     if rerun.returncode != 0:
         log.warning("Could not rerun job %s: %s", job_id, rerun.stderr.strip())
         return False
     watch = subprocess.run(
         ["gh", "run", "watch", run_id, "--repo", repo, "--exit-status", "--interval", "15"],
-        capture_output=True, text=True, timeout=1800,
+        capture_output=True,
+        text=True,
+        timeout=1800,
     )
     if watch.returncode != 0:
-        log.warning("Rerun did not complete successfully for run %s: %s", run_id, watch.stderr.strip())
+        log.warning(
+            "Rerun did not complete successfully for run %s: %s", run_id, watch.stderr.strip()
+        )
         return False
     return True
 
@@ -882,7 +995,10 @@ def deploy(router, ipk_path: Path, reboot: bool = False, backend=None) -> dict[s
             "; rm -f /tmp/tollgate-wrt.ipk",
             timeout=120,
         )
-        version_out = router.ssh("apk info -e tollgate-wrt 2>/dev/null || opkg list-installed | grep tollgate-wrt", timeout=10)
+        version_out = router.ssh(
+            "apk info -e tollgate-wrt 2>/dev/null || opkg list-installed | grep tollgate-wrt",
+            timeout=10,
+        )
     else:
         router.ssh(
             "/etc/init.d/tollgate-wrt stop 2>/dev/null;"
@@ -929,10 +1045,8 @@ def deploy(router, ipk_path: Path, reboot: bool = False, backend=None) -> dict[s
 
 def reboot_router(router, wait: bool = True) -> dict[str, object]:
     log.info("Rebooting router")
-    try:
+    with contextlib.suppress(subprocess.TimeoutExpired, Exception):
         router.ssh("reboot", timeout=5)
-    except (subprocess.TimeoutExpired, Exception):
-        pass
 
     if wait:
         _wait_for_reboot(router)
@@ -944,10 +1058,8 @@ def reboot_router(router, wait: bool = True) -> dict[str, object]:
 
     version_out = ""
     if healthy:
-        try:
+        with contextlib.suppress(Exception):
             version_out = router.ssh("opkg list-installed | grep tollgate-wrt", timeout=10)
-        except Exception:
-            pass
 
     return {
         "installed_version": _parse_version(version_out) if version_out else None,
@@ -980,12 +1092,18 @@ def check_deployed(router) -> dict[str, object]:
     }
 
 
-def factory_reset(router, reboot: bool = False, expected_mac: str | None = None) -> dict[str, object]:
+def factory_reset(
+    router, reboot: bool = False, expected_mac: str | None = None
+) -> dict[str, object]:
     guard_mac = expected_mac or os.environ.get("TOLLGATE_EXPECTED_MAC", "")
     if guard_mac:
         log.info("Verifying router MAC address before factory reset")
         try:
-            mac_out = router.ssh("cat /sys/class/net/br-lan/address 2>/dev/null || cat /sys/class/net/eth0/address 2>/dev/null", timeout=5)
+            mac_out = router.ssh(
+                "cat /sys/class/net/br-lan/address 2>/dev/null "
+                "|| cat /sys/class/net/eth0/address 2>/dev/null",
+                timeout=5,
+            )
             actual_mac = mac_out.strip().lower()
             expected = guard_mac.lower()
             if actual_mac != expected:
@@ -1012,12 +1130,15 @@ def factory_reset(router, reboot: bool = False, expected_mac: str | None = None)
         " /tmp/tollgate-portal.log",
         timeout=10,
     )
-    router.ssh("rm -f /etc/uci-defaults/90-tollgate-captive-portal-symlink"
-               " /etc/uci-defaults/95-tollgate*"
-               " /etc/uci-defaults/98-tollgate*"
-               " /etc/uci-defaults/99-tollgate*"
-               " /etc/uci-defaults/99a-tollgate*"
-               " /etc/uci-defaults/99b-tollgate*", timeout=10)
+    router.ssh(
+        "rm -f /etc/uci-defaults/90-tollgate-captive-portal-symlink"
+        " /etc/uci-defaults/95-tollgate*"
+        " /etc/uci-defaults/98-tollgate*"
+        " /etc/uci-defaults/99-tollgate*"
+        " /etc/uci-defaults/99a-tollgate*"
+        " /etc/uci-defaults/99b-tollgate*",
+        timeout=10,
+    )
 
     log.info("Restoring uhttpd to port 80")
     router.ssh(
@@ -1031,7 +1152,10 @@ def factory_reset(router, reboot: bool = False, expected_mac: str | None = None)
     )
 
     log.info("Disabling nodogsplash")
-    router.ssh("/etc/init.d/nodogsplash stop 2>/dev/null; /etc/init.d/nodogsplash disable 2>/dev/null", timeout=10)
+    router.ssh(
+        "/etc/init.d/nodogsplash stop 2>/dev/null; /etc/init.d/nodogsplash disable 2>/dev/null",
+        timeout=10,
+    )
 
     router.ssh("fw4 restart 2>/dev/null", timeout=15)
     router.ssh("/etc/init.d/uhttpd restart 2>/dev/null", timeout=15)
@@ -1047,7 +1171,11 @@ def firstboot_reset(router, expected_mac: str | None = None) -> dict[str, object
     if guard_mac:
         log.info("Verifying router MAC address before firstboot reset")
         try:
-            mac_out = router.ssh("cat /sys/class/net/br-lan/address 2>/dev/null || cat /sys/class/net/eth0/address 2>/dev/null", timeout=5)
+            mac_out = router.ssh(
+                "cat /sys/class/net/br-lan/address 2>/dev/null "
+                "|| cat /sys/class/net/eth0/address 2>/dev/null",
+                timeout=5,
+            )
             actual_mac = mac_out.strip().lower()
             expected = guard_mac.lower()
             if actual_mac != expected:
@@ -1063,20 +1191,24 @@ def firstboot_reset(router, expected_mac: str | None = None) -> dict[str, object
             log.warning("Could not verify MAC (%s) — proceeding anyway", e)
 
     log.info("Running firstboot -y && reboot")
-    try:
+    with contextlib.suppress(subprocess.TimeoutExpired, Exception):
         router.ssh("firstboot -y && reboot", timeout=10)
-    except (subprocess.TimeoutExpired, Exception):
-        pass
 
     if not _wait_for_reboot(router):
-        return {"success": False, "rebooted": True, "error": "Router did not come back after firstboot"}
+        return {
+            "success": False,
+            "rebooted": True,
+            "error": "Router did not come back after firstboot",
+        }
 
     install_test_deps(router)
 
     return {"success": True, "rebooted": True}
 
 
-def deploy_portal(router, portal, arch: str | None = None, branch: str = "main") -> dict[str, object]:
+def deploy_portal(
+    router, portal, arch: str | None = None, branch: str = "main"
+) -> dict[str, object]:
     """Download and install an alternative portal .ipk on the router.
 
     Only runs when ``portal.needs_separate_deploy`` is True (i.e. not
@@ -1084,9 +1216,9 @@ def deploy_portal(router, portal, arch: str | None = None, branch: str = "main")
     ``tollgate-captive-portal-site`` and CONFLICT with the built-in
     portal so that ``opkg`` handles the symlink swap automatically.
     """
-    PortalConfig = dict  # type alias — physical-router provides real PortalConfig
+    portal_config_type = dict  # type alias — physical-router provides real PortalConfig
 
-    assert isinstance(portal, PortalConfig)
+    assert isinstance(portal, portal_config_type)
     if not portal.needs_separate_deploy:
         return {"skipped": True, "reason": "builtin portal"}
 
@@ -1109,7 +1241,8 @@ def deploy_portal(router, portal, arch: str | None = None, branch: str = "main")
         workflow=portal.workflow,
     )
     ipk_path = download_artifact(
-        branch, arch,
+        branch,
+        arch,
         run_id=run_id,
         repo=portal.repo,
         workflow=portal.workflow,
@@ -1137,7 +1270,8 @@ def deploy_portal(router, portal, arch: str | None = None, branch: str = "main")
     else:
         log.error(
             "Portal %s failed to install. opkg output: %s",
-            portal.type, (install_out or "").strip()[:500],
+            portal.type,
+            (install_out or "").strip()[:500],
         )
 
     return {
@@ -1147,10 +1281,16 @@ def deploy_portal(router, portal, arch: str | None = None, branch: str = "main")
     }
 
 
-def deploy_branch(router, branch: str, arch: str | None = None,
-                  run_id: str | None = None, force: bool = False,
-                  reboot: bool = False, repo: str | None = None,
-                  backend=None) -> dict[str, object]:
+def deploy_branch(
+    router,
+    branch: str,
+    arch: str | None = None,
+    run_id: str | None = None,
+    force: bool = False,
+    reboot: bool = False,
+    repo: str | None = None,
+    backend=None,
+) -> dict[str, object]:
     if not arch:
         env_arch = os.environ.get("TOLLGATE_ROUTER_ARCH")
         if env_arch:
@@ -1175,6 +1315,7 @@ def deploy_branch(router, branch: str, arch: str | None = None,
     pm = detect_package_manager(router)
     fmt = "apk" if pm == "apk" else "ipk"
     log.info("Router package manager: %s — requesting %s artifact", pm, fmt)
-    ipk_path = download_artifact(branch, arch, run_id=run_id,
-                                 repo=artifact_repo, workflow=artifact_workflow, fmt=fmt)
+    ipk_path = download_artifact(
+        branch, arch, run_id=run_id, repo=artifact_repo, workflow=artifact_workflow, fmt=fmt
+    )
     return deploy(router, ipk_path, reboot=reboot, backend=backend)

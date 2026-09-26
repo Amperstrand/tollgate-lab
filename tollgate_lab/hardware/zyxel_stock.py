@@ -154,8 +154,7 @@ class StockWeb:
         raise RuntimeError("no XSSID token on cmd=1/30/550")
 
     def _evicted(self, body: str) -> bool:
-        return not self._in_login and any(
-            m in body for m in self._LOGIN_PAGE_MARKERS)
+        return not self._in_login and any(m in body for m in self._LOGIN_PAGE_MARKERS)
 
     def _fetch(self, request: urllib.request.Request) -> str:
         body = self.opener.open(request, timeout=8).read().decode("latin-1", "replace")
@@ -165,7 +164,8 @@ class StockWeb:
             if self._evicted(body):
                 raise RuntimeError(
                     "session evicted twice in a row — another client is "
-                    "actively hammering the single web session")
+                    "actively hammering the single web session"
+                )
         return body
 
     def get(self, cmd: int) -> str:
@@ -242,8 +242,9 @@ class StockWeb:
             time.sleep(1.5)
         raise RuntimeError(f"poe toggle port {port} unverified: {row}")
 
-    def set_static_ip(self, ip: str, netmask: str = "255.255.255.0",
-                      gateway: str = "192.168.13.1") -> None:
+    def set_static_ip(
+        self, ip: str, netmask: str = "255.255.255.0", gateway: str = "192.168.13.1"
+    ) -> None:
         """cmd=516/517: static IP setup. mode radio: 0=Static, 1=DHCP
         (inverted from what you'd guess — verified live 2026-09-25). The
         session drops when the address changes; reconnect at the new IP."""
@@ -252,14 +253,24 @@ class StockWeb:
         if not m:
             raise RuntimeError("no XSSID on cmd=516")
         import urllib.request as _u
-        fields = [("XSSID", m.group(1)), ("mode", "0"), ("ip", ip),
-                  ("netmask", netmask), ("gateway", gateway),
-                  ("dns1", "0.0.0.0"), ("dns2", "0.0.0.0"),
-                  ("management_vlan", "1"), ("cmd", "517"),
-                  ("sysSubmit", "Apply")]
-        req = _u.Request(self.base,
-                         data="&".join(f"{k}={v}" for k, v in fields).encode(),
-                         headers={"Content-Type": "application/x-www-form-urlencoded"})
+
+        fields = [
+            ("XSSID", m.group(1)),
+            ("mode", "0"),
+            ("ip", ip),
+            ("netmask", netmask),
+            ("gateway", gateway),
+            ("dns1", "0.0.0.0"),
+            ("dns2", "0.0.0.0"),
+            ("management_vlan", "1"),
+            ("cmd", "517"),
+            ("sysSubmit", "Apply"),
+        ]
+        req = _u.Request(
+            self.base,
+            data="&".join(f"{k}={v}" for k, v in fields).encode(),
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
         with contextlib.suppress(Exception):  # address moved; drop expected
             self.opener.open(req, timeout=8)
 
@@ -271,30 +282,40 @@ class StockWeb:
         no-ops. This exact recipe survived a verify-reboot on 2026-09-25;
         the ambiguous form POST did not (the stock-poe revert incident)."""
         import urllib.request as _u
+
         page = self.get(5898)
         m = re.search(r'name="XSSID"\s+value="([0-9A-F]+)"', page)
         if not m:
             raise RuntimeError("no XSSID on cmd=5898")
-        fields = [("XSSID", m.group(1)), ("srcFile", "1"), ("dstFile", "2"),
-                  ("cmd", "5899"), ("sysSubmit", "Apply")]
-        req = _u.Request(self.base,
-                         data="&".join(f"{k}={v}" for k, v in fields).encode(),
-                         headers={"Content-Type": "application/x-www-form-urlencoded"})
+        fields = [
+            ("XSSID", m.group(1)),
+            ("srcFile", "1"),
+            ("dstFile", "2"),
+            ("cmd", "5899"),
+            ("sysSubmit", "Apply"),
+        ]
+        req = _u.Request(
+            self.base,
+            data="&".join(f"{k}={v}" for k, v in fields).encode(),
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
         resp = self.opener.open(req, timeout=15).read().decode("latin-1", "replace")
         return "Configuration saved" in resp
 
     def reboot(self) -> None:
         """cmd=5888/5889: controlled reboot (~40 s downtime on GS1900-8HP)."""
         import urllib.request as _u
+
         page = self.get(5888)
         m = re.search(r'name="XSSID"\s+value="([0-9A-F]+)"', page)
         if not m:
             raise RuntimeError("no XSSID on cmd=5888")
-        fields = [("XSSID", m.group(1)), ("cmd", "5889"),
-                  ("sysSubmit", "Reboot")]
-        req = _u.Request(self.base,
-                         data="&".join(f"{k}={v}" for k, v in fields).encode(),
-                         headers={"Content-Type": "application/x-www-form-urlencoded"})
+        fields = [("XSSID", m.group(1)), ("cmd", "5889"), ("sysSubmit", "Reboot")]
+        req = _u.Request(
+            self.base,
+            data="&".join(f"{k}={v}" for k, v in fields).encode(),
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
         with contextlib.suppress(Exception):  # box goes down; drop expected
             self.opener.open(req, timeout=8)
 
@@ -366,6 +387,7 @@ def complete_password_gate(host: str, old: str, new: str) -> bool:
     skips the gate but wedges the session into a redirect loop. All three
     password fields are zyxel_encode()d before POST."""
     import urllib.request as _u
+
     w = StockWeb.__new__(StockWeb)
     w.base = f"http://{host}/cgi-bin/dispatcher.cgi"
     w.user, w.host = "admin", host
@@ -373,8 +395,11 @@ def complete_password_gate(host: str, old: str, new: str) -> bool:
     w.opener = _u.build_opener(_u.HTTPCookieProcessor(w.jar))
 
     def post(data: str) -> str:
-        req = _u.Request(w.base, data=data.encode(),
-                        headers={"Content-Type": "application/x-www-form-urlencoded"})
+        req = _u.Request(
+            w.base,
+            data=data.encode(),
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
         return w.opener.open(req, timeout=8).read().decode("latin-1", "replace")
 
     auth_id = post(f"username=admin&password={zyxel_encode(old)}&login=true;").strip()
@@ -384,10 +409,16 @@ def complete_password_gate(host: str, old: str, new: str) -> bool:
     m = re.search(r'name="XSSID"\s+value="([0-9A-F]+)"', page)
     if not m:
         return False  # no gate in this state
-    fields = [("XSSID", m.group(1)), ("usrName", "admin"),
-              ("usrOldPass", zyxel_encode(old)), ("usrPass", zyxel_encode(new)),
-              ("usrPass2", zyxel_encode(new)), ("usrPassEncode", zyxel_encode(new)),
-              ("cmd", "31"), ("sysSubmit", "Apply")]
+    fields = [
+        ("XSSID", m.group(1)),
+        ("usrName", "admin"),
+        ("usrOldPass", zyxel_encode(old)),
+        ("usrPass", zyxel_encode(new)),
+        ("usrPass2", zyxel_encode(new)),
+        ("usrPassEncode", zyxel_encode(new)),
+        ("cmd", "31"),
+        ("sysSubmit", "Apply"),
+    ]
     post("&".join(f"{k}={v}" for k, v in fields))
     try:
         StockWeb(host, new)

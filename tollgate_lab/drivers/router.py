@@ -1,17 +1,20 @@
-import subprocess
+import contextlib
 import json
+import logging
 import os
+import re
+import shlex
+import subprocess
 import tempfile
 import time
-import re
-import logging
-import shlex
+from dataclasses import dataclass
+from dataclasses import field as dc_field
 
 # Default constants — override via constructor params or env vars
-BACKEND_PORT = int(os.environ.get('TOLLGATE_BACKEND_PORT', '8080'))
-CGI_PORT = int(os.environ.get('TOLLGATE_CGI_PORT', '2080'))
-TEST_MINT_URL = os.environ.get('TOLLGATE_TEST_MINT_URL', 'https://testmint.nut.cash')
-from dataclasses import dataclass, field as dc_field
+BACKEND_PORT = int(os.environ.get("TOLLGATE_BACKEND_PORT", "8080"))
+CGI_PORT = int(os.environ.get("TOLLGATE_CGI_PORT", "2080"))
+TEST_MINT_URL = os.environ.get("TOLLGATE_TEST_MINT_URL", "https://testmint.nut.cash")
+
 
 @dataclass
 class BackendConfig:
@@ -20,6 +23,7 @@ class BackendConfig:
     When used standalone (without physical-router-test-automation),
     all fields default to Go backend values.
     """
+
     name: str = "go"
     repo: str = "Amperstrand/tollgate-module-basic-go"
     workflow: str = "Build and Publish"
@@ -37,13 +41,22 @@ class BackendConfig:
     def is_go(self) -> bool:
         return self.name == "go"
 
+
 log = logging.getLogger("tollgate.router")
 
 
 class Router:
-    def __init__(self, host: str, phone_ip: str, phone_mac: str, domain: str,
-                 identity_file: str | None = None, jump_host: str | None = None,
-                 port: int | None = None, backend: BackendConfig | None = None):
+    def __init__(
+        self,
+        host: str,
+        phone_ip: str,
+        phone_mac: str,
+        domain: str,
+        identity_file: str | None = None,
+        jump_host: str | None = None,
+        port: int | None = None,
+        backend: BackendConfig | None = None,
+    ):
         self.host = host
         self.phone_ip = phone_ip
         self.phone_mac = phone_mac
@@ -55,19 +68,28 @@ class Router:
         self.jump_host = jump_host
         self.port = port
         self.backend = backend or BackendConfig()
-        self._ssh_pw = os.environ.get("TOLLGATE_SSH_PASSWORD") or os.environ.get("TOLLGATE_LUCI_PASSWORD")
+        self._ssh_pw = os.environ.get("TOLLGATE_SSH_PASSWORD") or os.environ.get(
+            "TOLLGATE_LUCI_PASSWORD"
+        )
 
         self._control_dir = tempfile.mkdtemp(prefix="tollgate-ssh-")
         self._control_path = os.path.join(self._control_dir, "control")
 
         ssh_opts = [
-            "-o", "ConnectTimeout=10",
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "UserKnownHostsFile=/dev/null",
-            "-o", "LogLevel=ERROR",
-            "-o", f"ControlPath={self._control_path}",
-            "-o", "ControlMaster=auto",
-            "-o", "ControlPersist=60",
+            "-o",
+            "ConnectTimeout=10",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "LogLevel=ERROR",
+            "-o",
+            f"ControlPath={self._control_path}",
+            "-o",
+            "ControlMaster=auto",
+            "-o",
+            "ControlPersist=60",
         ]
         if not identity_file and self._ssh_pw:
             self._ssh_base = ["sshpass", "-e", "ssh"] + ssh_opts
@@ -82,21 +104,23 @@ class Router:
         self._ssh_base.append(f"root@{host}")
 
     def close(self):
-        try:
+        with contextlib.suppress(Exception):
             subprocess.run(
-                ["ssh", "-o", f"ControlPath={self._control_path}", "-O", "exit", f"root@{self.host}"],
-                capture_output=True, timeout=5,
+                [
+                    "ssh",
+                    "-o",
+                    f"ControlPath={self._control_path}",
+                    "-O",
+                    "exit",
+                    f"root@{self.host}",
+                ],
+                capture_output=True,
+                timeout=5,
             )
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(FileNotFoundError):
             os.remove(self._control_path)
-        except FileNotFoundError:
-            pass
-        try:
+        with contextlib.suppress(OSError):
             os.rmdir(self._control_dir)
-        except OSError:
-            pass
 
     def resolve_phone_client(self, adb) -> tuple:
         mac = adb.wifi_mac()
@@ -144,11 +168,9 @@ class Router:
 
     def get_nds_portal_port(self) -> int:
         """NDS gatewayport from UCI, cached. Falls back to 2050."""
-        if not hasattr(self, '_nds_portal_port'):
+        if not hasattr(self, "_nds_portal_port"):
             try:
-                port = self.ssh(
-                    "uci -q get nodogsplash.@nodogsplash[0].gatewayport"
-                ).strip()
+                port = self.ssh("uci -q get nodogsplash.@nodogsplash[0].gatewayport").strip()
                 self._nds_portal_port = int(port) if port else 2050
             except Exception:
                 logging.warning("UCI query for nodogsplash gatewayport failed, assuming 2050")
@@ -157,7 +179,7 @@ class Router:
 
     def get_nds_gateway_domain(self) -> str:
         """NDS gatewaydomainname from UCI, cached. Empty string if not set."""
-        if not hasattr(self, '_nds_gateway_domain'):
+        if not hasattr(self, "_nds_gateway_domain"):
             try:
                 domain = self.ssh(
                     "uci -q get nodogsplash.@nodogsplash[0].gatewaydomainname"
@@ -180,9 +202,7 @@ class Router:
     def _detect_cgi_port(self) -> int:
         """Auto-detect the NDS gateway port serving CGI scripts."""
         try:
-            out = self.ssh(
-                "netstat -tlnp 2>/dev/null | grep nodogsplash | head -1"
-            )
+            out = self.ssh("netstat -tlnp 2>/dev/null | grep nodogsplash | head -1")
             if out and ":" in out:
                 port = out.split(":")[1].split()[0]
                 return int(port)
@@ -194,7 +214,9 @@ class Router:
         port = self._detect_cgi_port()
         return f"http://127.0.0.1:{port}/cgi-bin/{endpoint}"
 
-    def router_fetch(self, url: str, method: str = "GET", data: str | None = None, timeout: int = 10) -> str:
+    def router_fetch(
+        self, url: str, method: str = "GET", data: str | None = None, timeout: int = 10
+    ) -> str:
         if data is not None:
             return self.ssh(f"wget -qO- --post-data='{data}' '{url}'", timeout=timeout)
         return self.ssh(f"wget -qO- '{url}'", timeout=timeout)
@@ -203,7 +225,8 @@ class Router:
         out = self.ssh(f"wget --spider '{url}' 2>&1", timeout=timeout)
         if "HTTP error" in out:
             import re
-            m = re.search(r'HTTP error (\d{3})', out)
+
+            m = re.search(r"HTTP error (\d{3})", out)
             if m:
                 return m.group(1)
         if "Download completed" in out or "Writing to" in out:
@@ -221,7 +244,9 @@ class Router:
     def ssh(self, cmd: str, timeout: int = 30) -> str:
         r = subprocess.run(
             self._ssh_base + [cmd],
-            capture_output=True, text=True, timeout=timeout,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
             env=self._ssh_env(),
         )
         if r.returncode != 0:
@@ -238,9 +263,7 @@ class Router:
             return
         noise = re.compile(r"Warning:.*Permanently added[^\n]*")
         cleaned = noise.sub("", result.stderr).strip()
-        raise RuntimeError(
-            f"Failed to write {remote_path} ({result.returncode}): {cleaned[:300]}"
-        )
+        raise RuntimeError(f"Failed to write {remote_path} ({result.returncode}): {cleaned[:300]}")
 
     def write_remote_json(self, remote_path: str, payload, indent: int = 2, timeout: int = 15):
         self.write_remote_text(remote_path, json.dumps(payload, indent=indent), timeout=timeout)
@@ -248,15 +271,21 @@ class Router:
     def ssh_stdin(self, cmd: str, data: str, timeout: int = 15):
         return subprocess.run(
             self._ssh_base + [cmd],
-            input=data, capture_output=True, text=True, timeout=timeout,
+            input=data,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
             env=self._ssh_env(),
         )
 
     def scp_to(self, local_path: str, remote_path: str, timeout: int = 120):
         ssh_opts = [
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "UserKnownHostsFile=/dev/null",
-            "-o", "LogLevel=ERROR",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "LogLevel=ERROR",
         ]
         pw = os.environ.get("TOLLGATE_SSH_PASSWORD") or os.environ.get("TOLLGATE_LUCI_PASSWORD")
         if self.identity_file:
@@ -276,7 +305,6 @@ class Router:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=env)
         if r.returncode != 0:
             raise RuntimeError(f"SCP failed ({r.returncode}): {r.stderr.strip()[:300]}")
-
 
     def fix_nodogsplash_dhcp(self):
         """Ensure nodogsplash allows DHCP through its ndsRTR chain.
@@ -331,7 +359,7 @@ class Router:
             self.ssh(
                 "ip -6 addr show br-lan scope global | grep inet6 | "
                 "awk '{print $2}' | while read addr; do "
-                "ip addr del \"$addr\" dev br-lan 2>/dev/null; done",
+                'ip addr del "$addr" dev br-lan 2>/dev/null; done',
                 timeout=10,
             )
             log.info("IPv6 disabled on LAN (RA, DHCPv6, ip6assign=0)")
@@ -351,9 +379,18 @@ class Router:
             except Exception:
                 return 0
         r = subprocess.run(
-            ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}",
-             f"http://{self.host}:{BACKEND_PORT}{path}"],
-            capture_output=True, text=True, timeout=15,
+            [
+                "curl",
+                "-s",
+                "-o",
+                "/dev/null",
+                "-w",
+                "%{http_code}",
+                f"http://{self.host}:{BACKEND_PORT}{path}",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         code = r.stdout.strip()
         return int(code) if code.isdigit() else 0
@@ -367,12 +404,20 @@ class Router:
                 return ""
         r = subprocess.run(
             ["curl", "-s", f"http://{self.host}:{BACKEND_PORT}{path}"],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         return r.stdout.strip()
 
-    def backend_curl_xff(self, path: str, ip: str | None = None, method: str | None = None,
-                         headers: dict | None = None, data: str | None = None) -> str:
+    def backend_curl_xff(
+        self,
+        path: str,
+        ip: str | None = None,
+        method: str | None = None,
+        headers: dict | None = None,
+        data: str | None = None,
+    ) -> str:
         ip = ip or self.phone_ip
         header_args = ""
         if ip:
@@ -381,7 +426,9 @@ class Router:
             for k, v in headers.items():
                 header_args += f" --header='{k}: {v}'"
         if data:
-            return self.ssh(f"wget -qO- {header_args} --post-data='{data}' '{path}' 2>/dev/null || true")
+            return self.ssh(
+                f"wget -qO- {header_args} --post-data='{data}' '{path}' 2>/dev/null || true"
+            )
         return self.ssh(f"wget -qO- {header_args} '{path}' 2>/dev/null || true")
 
     def pay_direct(self, token: str, ip: str | None = None) -> dict:
@@ -420,8 +467,7 @@ class Router:
     def pay_via_header(self, token: str, mac: str | None = None) -> str:
         mac = mac or self.phone_mac
         return self.ssh(
-            f"wget -qO- --header='X-Cashu: {token}' "
-            f"'{self.backend_url(f'/pay?mac={mac}')}'"
+            f"wget -qO- --header='X-Cashu: {token}' '{self.backend_url(f'/pay?mac={mac}')}'"
         )
 
     def get_client_ip_from_nds(self, mac: str | None = None) -> str:
@@ -510,7 +556,9 @@ class Router:
         remaining_ms = session.get("remaining", 0)
         return remaining_ms // 1000 if remaining_ms and remaining_ms > 0 else 0
 
-    def wait_for_session_expiry(self, mac: str | None = None, poll_interval: float = 1, max_wait: int = 120) -> int:
+    def wait_for_session_expiry(
+        self, mac: str | None = None, poll_interval: float = 1, max_wait: int = 120
+    ) -> int:
         mac = mac or self.phone_mac
         start = time.time()
         while time.time() - start < max_wait:
@@ -538,14 +586,14 @@ class Router:
 
     def apply_pricing(self, step_size: int | None = None, metric: str = "milliseconds"):
         if step_size is None:
-            DEFAULT_STEP_SIZE_MS = int(os.environ.get("TOLLGATE_DEFAULT_STEP_SIZE_MS", "1000"))
-            step_size = DEFAULT_STEP_SIZE_MS
+            default_step_size_ms = int(os.environ.get("TOLLGATE_DEFAULT_STEP_SIZE_MS", "1000"))
+            step_size = default_step_size_ms
         self.ssh(
-            f"sed -i 's/\"step_size\":[[:space:]]*[0-9]*/\"step_size\": {step_size}/' "
+            f'sed -i \'s/"step_size":[[:space:]]*[0-9]*/"step_size": {step_size}/\' '
             f"/etc/tollgate/config.json"
         )
         self.ssh(
-            f"sed -i 's/\"metric\":[[:space:]]*\"[^\"]*\"/\"metric\": \"{metric}\"/' "
+            f'sed -i \'s/"metric":[[:space:]]*"[^"]*"/"metric": "{metric}"/\' '
             f"/etc/tollgate/config.json"
         )
         self.restart_backend()
@@ -627,16 +675,18 @@ class Router:
         cfg = json.loads(cfg_raw)
         if any(m.get("url") == TEST_MINT_URL for m in cfg.get("accepted_mints", [])):
             return
-        cfg.setdefault("accepted_mints", []).append({
-            "url": TEST_MINT_URL,
-            "min_balance": 0,
-            "balance_tolerance_percent": 0,
-            "payout_interval_seconds": 60,
-            "min_payout_amount": 0,
-            "price_per_step": 1,
-            "price_unit": "sats",
-            "purchase_min_steps": 0,
-        })
+        cfg.setdefault("accepted_mints", []).append(
+            {
+                "url": TEST_MINT_URL,
+                "min_balance": 0,
+                "balance_tolerance_percent": 0,
+                "payout_interval_seconds": 60,
+                "min_payout_amount": 0,
+                "price_per_step": 1,
+                "price_unit": "sats",
+                "purchase_min_steps": 0,
+            }
+        )
         tmp = "/tmp/config-testmint.json"
         with open(tmp, "w") as f:
             json.dump(cfg, f, indent=2)
@@ -647,7 +697,7 @@ class Router:
 
     def replace_mints(self, mint_urls: list[str] | None = None):
         """Replace all accepted mints with only the specified URLs.
-        
+
         Args:
             mint_urls: List of mint URLs to use. Defaults to [TEST_MINT_URL].
         """
@@ -657,23 +707,25 @@ class Router:
         # Read current config
         cfg_raw = self.ssh("cat /etc/tollgate/config.json")
         cfg = json.loads(cfg_raw)
-        
+
         # Build new accepted_mints list
         new_mints = []
         for url in mint_urls:
-            new_mints.append({
-                "url": url,
-                "min_balance": 0,
-                "balance_tolerance_percent": 0,
-                "payout_interval_seconds": 60,
-                "min_payout_amount": 0,
-                "price_per_step": 1,
-                "price_unit": "sats",
-                "purchase_min_steps": 0,
-            })
-        
+            new_mints.append(
+                {
+                    "url": url,
+                    "min_balance": 0,
+                    "balance_tolerance_percent": 0,
+                    "payout_interval_seconds": 60,
+                    "min_payout_amount": 0,
+                    "price_per_step": 1,
+                    "price_unit": "sats",
+                    "purchase_min_steps": 0,
+                }
+            )
+
         cfg["accepted_mints"] = new_mints
-        
+
         self.write_remote_json("/etc/tollgate/config.json", cfg)
 
         self.restart_backend()
@@ -729,7 +781,12 @@ class Router:
             ("ipv6-addrs.txt", "ip -6 addr show br-lan scope global 2>/dev/null || echo 'none'"),
         ]
         if self.backend.has_sessions_json:
-            log_cmds.append(("tollgate-sessions.json", "cat /etc/tollgate/sessions.json 2>/dev/null || echo '{}'"))
+            log_cmds.append(
+                (
+                    "tollgate-sessions.json",
+                    "cat /etc/tollgate/sessions.json 2>/dev/null || echo '{}'",
+                )
+            )
         for name, cmd in log_cmds:
             try:
                 with open(os.path.join(raw, name), "w") as f:
@@ -747,7 +804,10 @@ class Router:
 
     def ssh_bool(self, cmd: str, timeout: int = 30) -> bool:
         """Run a remote shell predicate and return True only when it exits 0."""
-        return self.ssh(f"( {cmd} ) >/dev/null 2>&1 && echo YES || echo NO", timeout=timeout).strip() == "YES"
+        return (
+            self.ssh(f"( {cmd} ) >/dev/null 2>&1 && echo YES || echo NO", timeout=timeout).strip()
+            == "YES"
+        )
 
     def file_mode(self, path: str) -> str:
         """Return the remote file's symbolic mode string, e.g. ``-rw-------``."""
@@ -777,6 +837,7 @@ class Router:
         """Block mint hostname via /etc/hosts (same as Makefile block-mint)."""
         url = mint_url or os.environ.get("TOLLGATE_TEST_MINT_URL", TEST_MINT_URL)
         from urllib.parse import urlparse
+
         host = urlparse(url).hostname or url
         quoted_host = shlex.quote(host)
         quoted_entry = shlex.quote(f"0.0.0.0 {host}")
@@ -788,10 +849,12 @@ class Router:
     def unblock_mint(self, mint_url: str | None = None) -> None:
         url = mint_url or os.environ.get("TOLLGATE_TEST_MINT_URL", TEST_MINT_URL)
         from urllib.parse import urlparse
+
         host = urlparse(url).hostname or url
         quoted_host = shlex.quote(host)
         self.ssh(
-            f"tmp=/tmp/hosts.$$; grep -vF -- {quoted_host} /etc/hosts > $tmp || true; mv $tmp /etc/hosts"
+            f"tmp=/tmp/hosts.$$; grep -vF -- {quoted_host} /etc/hosts > $tmp || true; "
+            f"mv $tmp /etc/hosts"
         )
         log.info("Unblocked mint host %s", host)
 

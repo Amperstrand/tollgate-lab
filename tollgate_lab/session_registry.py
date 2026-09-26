@@ -36,16 +36,18 @@ import fcntl
 import json
 import os
 import platform
-import subprocess
 import time
 from pathlib import Path
 from typing import Any
 
-SESSIONS_DIR = Path(
-    os.environ.get("BENCH_RESERVATION_DIR", "~/bench-reservations")
-    if os.environ.get("BENCH_RESERVATION_DIR")
-    else "~/bench-reservations"
-).expanduser() / "sessions"
+SESSIONS_DIR = (
+    Path(
+        os.environ.get("BENCH_RESERVATION_DIR", "~/bench-reservations")
+        if os.environ.get("BENCH_RESERVATION_DIR")
+        else "~/bench-reservations"
+    ).expanduser()
+    / "sessions"
+)
 
 JOURNAL = SESSIONS_DIR / "journal.log"
 
@@ -100,9 +102,7 @@ class Session:
         self.path.write_text(json.dumps(self.record, indent=2))
 
 
-def session_begin(
-    name: str, project: str, note_text: str = ""
-) -> Session:
+def session_begin(name: str, project: str, note_text: str = "") -> Session:
     """Announce a session. Cheap, never blocks, never fails closed — a
     registry outage must not block bench work (best-effort visibility)."""
     record = {
@@ -173,9 +173,12 @@ def _flock_held(path: Path) -> bool:
 
 def _cmdline(pid: int) -> str:
     try:
-        return Path(f"/proc/{pid}/cmdline").read_bytes().replace(
-            b"\0", b" "
-        ).decode(errors="replace")[:200]
+        return (
+            Path(f"/proc/{pid}/cmdline")
+            .read_bytes()
+            .replace(b"\0", b" ")
+            .decode(errors="replace")[:200]
+        )
     except OSError:
         return "-"
 
@@ -184,9 +187,7 @@ def _main() -> int:
     import argparse
 
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument(
-        "command", choices=("status", "journal"), help="what to show"
-    )
+    parser.add_argument("command", choices=("status", "journal"), help="what to show")
     args = parser.parse_args()
     if args.command == "journal":
         for line in journal_tail():
@@ -207,9 +208,7 @@ def _main() -> int:
         for key, value in (record.get("resources") or {}).items():
             print(f"         resource {key}={value}")
         for entry in record.get("pids") or []:
-            print(
-                f"         pid {entry.get('pid')} {entry.get('what', '')}".rstrip()
-            )
+            print(f"         pid {entry.get('pid')} {entry.get('what', '')}".rstrip())
     return 0
 
 

@@ -8,14 +8,11 @@ Cost: ~$0.01 per test run.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
-import subprocess
 import time
-from typing import cast
 
-from tollgate_lab.cloud.provider import VMConfig, VMInstance, VMProvider
+from tollgate_lab.cloud.provider import VMConfig, VMInstance
 
 log = logging.getLogger(__name__)
 
@@ -56,7 +53,7 @@ class SHCProvider:
             "labels": labels,
         }
 
-        result = self._api("POST", "/vms", json=payload)
+        self._api("POST", "/vms", json=payload)
 
         # Wait for VM to be ready
         for _ in range(60):
@@ -98,13 +95,15 @@ class SHCProvider:
         result = self._api("GET", "/vms", params=params)
         vms = []
         for vm in result.get("vms", []):
-            vms.append(VMInstance(
-                name=vm["name"],
-                external_ip=vm.get("external_ip", ""),
-                internal_ip=vm.get("internal_ip", ""),
-                status=vm.get("status", "unknown"),
-                provider="shc",
-            ))
+            vms.append(
+                VMInstance(
+                    name=vm["name"],
+                    external_ip=vm.get("external_ip", ""),
+                    internal_ip=vm.get("internal_ip", ""),
+                    status=vm.get("status", "unknown"),
+                    provider="shc",
+                )
+            )
         return vms
 
     def extend_lease(self, name: str, minutes: int = 60) -> None:
