@@ -1,4 +1,4 @@
-.PHONY: test test-unit test-fips test-tollgate test-cloud test-all lint install dev
+.PHONY: test test-unit test-fips test-tollgate test-cloud test-all lint install dev hooks
 
 PYTHON ?= python3
 
@@ -7,6 +7,10 @@ install:
 
 dev:
 	pip install -e ".[dev]"
+
+hooks:
+	git config core.hooksPath .githooks
+	@echo "pre-commit lint gate enabled (mirror of CI lint-and-test)"
 
 lint:
 	ruff check tollgate_lab/

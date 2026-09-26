@@ -102,3 +102,16 @@ tollgate-lab provides three layers:
 ## License
 
 MIT
+
+## Pre-commit lint gate
+
+CI (`lint-and-test`) runs `ruff check tollgate_lab/` + `ruff format --check tollgate_lab/`
+on every PR. Direct-to-main history accumulated 92 ruff errors precisely because nothing
+enforced that locally (cleaned up in PR #7). Enable the mirror locally, once per clone:
+
+```bash
+make hooks        # sets core.hooksPath to .githooks (pre-commit runs the CI lint)
+```
+
+`ruff` is pinned in the `dev` extra so local and CI use the same version. Bypass with
+`git commit --no-verify` for WIP — CI still gates the PR.

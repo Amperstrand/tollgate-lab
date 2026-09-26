@@ -1,0 +1,16 @@
+#!/bin/sh
+# Pre-commit lint gate — runs the EXACT commands CI runs (lint-and-test job).
+# If you change .github/workflows or Makefile lint, change this too.
+#
+# Enable once per clone:  make hooks
+# Bypass for WIP commits: git commit --no-verify  (CI will still gate the PR)
+set -e
+
+if ! command -v ruff >/dev/null 2>&1; then
+    echo "WARNING: ruff not installed — lint skipped locally." >&2
+    echo "         CI runs it on every PR; run 'make dev' to install, or expect red CI." >&2
+    exit 0
+fi
+
+ruff check tollgate_lab/
+ruff format --check tollgate_lab/
