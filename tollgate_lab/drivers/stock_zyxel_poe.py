@@ -51,15 +51,14 @@ PROTECTED_PORTS = frozenset({"p1"})
 BENCH_LOCK = "/tmp/amperstrand-bench"
 
 #: Mirrors ZyxelPoEDriver timing so both switches verify identically.
-SETTLING_S = 35.0        # healthy readback lag tolerated before wedge logic
+SETTLING_S = 35.0  # healthy readback lag tolerated before wedge logic
 VERIFY_TIMEOUT_S = 60.0  # total window for a toggle to reflect in cmd=773
-FROZEN_GRACE_S = 6.0     # frozen-row persistence past SETTLING_S => wedge
-POLL_INTERVAL_S = 1.5    # web polls are slower than ubus; stay gentle
+FROZEN_GRACE_S = 6.0  # frozen-row persistence past SETTLING_S => wedge
+POLL_INTERVAL_S = 1.5  # web polls are slower than ubus; stay gentle
 LOCK_TIMEOUT_S = 120.0
 
 _DEFAULT_TOOLS = os.environ.get("BENCH_TOOLS_PATH", "/home/ubuntu/conwrt-bench/tools")
-_BENCH_SECRETS = os.environ.get(
-    "BENCH_SECRETS", "/home/ubuntu/conwrt-bench/secrets/secrets.json")
+_BENCH_SECRETS = os.environ.get("BENCH_SECRETS", "/home/ubuntu/conwrt-bench/secrets/secrets.json")
 
 
 def _make_web(host: str, password: str, user: str):
@@ -69,11 +68,13 @@ def _make_web(host: str, password: str, user: str):
     wrapper — never vendor the client into this driver)."""
     try:
         from tollgate_lab.hardware.zyxel_stock import StockWeb
+
         return StockWeb(host, password, user)
     except ImportError:
         if _DEFAULT_TOOLS not in sys.path:
             sys.path.insert(0, _DEFAULT_TOOLS)
         from zyxel_stock import StockWeb
+
         return StockWeb(host, password, user)
 
 
@@ -88,12 +89,16 @@ def _resolve_password() -> str:
         return os.environ["BENCH_ROOT_PW"]
     import json
     import subprocess
+
     env = os.environ.copy()
-    env.setdefault("SOPS_AGE_KEY_FILE",
-                   os.path.expanduser("~/.config/age/keys.txt"))
+    env.setdefault("SOPS_AGE_KEY_FILE", os.path.expanduser("~/.config/age/keys.txt"))
     out = subprocess.run(
         ["sops", "-d", _BENCH_SECRETS],
-        capture_output=True, text=True, timeout=20, env=env, check=True,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        env=env,
+        check=True,
     ).stdout
     return json.loads(out)["fleet"]["bench_root_password"]
 
@@ -108,11 +113,12 @@ def _bench_flock(timeout: float = LOCK_TIMEOUT_S):
             try:
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 break
-            except BlockingIOError:
+            except BlockingIOError as exc:
                 if time.monotonic() > deadline:
                     raise ExecutionError(
                         f"bench lock {BENCH_LOCK} busy >{timeout:.0f}s — "
-                        "another agent holds the switch")
+                        "another agent holds the switch"
+                    ) from exc
                 time.sleep(0.5)
         yield
     finally:
@@ -186,8 +192,7 @@ class StockZyxelPoEDriver(Driver, PowerResetMixin, PowerProtocol):
     def _client(self):
         """StockWeb with one re-login on a login-shaped (expired) session."""
         if self._web is None:
-            self._web = _make_web(self.port.host, _resolve_password(),
-                                  self.port.username)
+            self._web = _make_web(self.port.host, _resolve_password(), self.port.username)
         return self._web
 
     def _row(self):
@@ -195,8 +200,7 @@ class StockZyxelPoEDriver(Driver, PowerResetMixin, PowerProtocol):
         try:
             return self._client().poe_status()[self.port.port_no]
         except KeyError:
-            raise ExecutionError(
-                f"port {self.port.port!r} missing from cmd=773") from None
+            raise ExecutionError(f"port {self.port.port!r} missing from cmd=773") from None
 
     def _snapshot(self):
         row = self._row()
@@ -219,8 +223,7 @@ class StockZyxelPoEDriver(Driver, PowerResetMixin, PowerProtocol):
         while time.monotonic() < deadline:
             last = self._snapshot()
             state, mw = last
-            ok = (state == "Enable" and mw > 0) if enable else \
-                 (state == "Disable" and mw == 0)
+            ok = (state == "Enable" and mw > 0) if enable else (state == "Disable" and mw == 0)
             if ok:
                 return
             want_state = "Enable" if enable else "Disable"
@@ -261,14 +264,14 @@ class StockZyxelPoEDriver(Driver, PowerResetMixin, PowerProtocol):
         if self.port.port.strip().lower() in PROTECTED_PORTS:
             raise ExecutionError(
                 f"refusing to toggle protected port {self.port.port!r} "
-                f"(protected: {sorted(PROTECTED_PORTS)})")
+                f"(protected: {sorted(PROTECTED_PORTS)})"
+            )
         with _bench_flock():
             pre = self._row()
             if enable and pre["state"] == "Enable" and pre["mw"] == 0:
                 # Port already enabled with no PD attached: nothing to verify
                 # against (watts can never appear) — accept the steady state.
-                self.logger.info(
-                    "port %s already Enable with no PD — no-op", self.port.port)
+                self.logger.info("port %s already Enable with no PD — no-op", self.port.port)
                 return
             # Full-field read-modify-write toggle (sibling fields from the
             # CURRENT row — never hardcoded) + state-level re-poll inside

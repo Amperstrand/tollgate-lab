@@ -1,11 +1,13 @@
-import json
 import hashlib
+import json
 import time
+
 from coincurve import PrivateKey
 
 
-def sign_event(tags: list, kind: int = 21000, content: str = "",
-               priv_hex: str | None = None) -> dict:
+def sign_event(
+    tags: list, kind: int = 21000, content: str = "", priv_hex: str | None = None
+) -> dict:
     sk = PrivateKey(bytes.fromhex(priv_hex)) if priv_hex else PrivateKey()
     pubkey = sk.public_key_xonly.format().hex()
     created_at = int(time.time())
@@ -27,8 +29,7 @@ def sign_event(tags: list, kind: int = 21000, content: str = "",
     }
 
 
-def payment_event(token: str, pubkey: str = "", mac: str = "",
-                  priv_hex: str | None = None) -> dict:
+def payment_event(token: str, pubkey: str = "", mac: str = "", priv_hex: str | None = None) -> dict:
     tags = []
     if pubkey:
         tags.append(["p", pubkey])

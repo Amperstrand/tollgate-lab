@@ -94,8 +94,8 @@ class AndroidADBDriver(Driver, CommandProtocol):
                     return match
             _time.sleep(interval)
         raise ExecutionError(
-            f"wait_for: {command!r} never matched {pattern!r} "
-            f"within {timeout:.0f}s")
+            f"wait_for: {command!r} never matched {pattern!r} within {timeout:.0f}s"
+        )
 
     @step(args=["command"])
     def poll_until_success(self, command, timeout=30.0, interval=1.0):
@@ -113,7 +113,8 @@ class AndroidADBDriver(Driver, CommandProtocol):
                 raise ExecutionError(
                     f"poll_until_success: {command!r} failed with "
                     f"rc={exitcode} after {timeout:.0f}s: "
-                    f"{chr(10).join(stderr)}")
+                    f"{chr(10).join(stderr)}"
+                )
             _time.sleep(interval)
 
     def screenshot(self, dest_path: str):
@@ -124,8 +125,7 @@ class AndroidADBDriver(Driver, CommandProtocol):
 
     def open_url(self, url: str):
         """Open a URL in the device's browser."""
-        self._adb(["shell", "am", "start", "-a", "android.intent.action.VIEW",
-                       "-d", url])
+        self._adb(["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", url])
 
     def install_apk(self, apk_path: str, timeout: float = 120.0):
         """Install an APK on the device."""
@@ -140,4 +140,5 @@ class AndroidADDDevice(Resource):
     Subclasses Resource so the factory can construct it (target/name come
     from the base); serial="" means "the one phone on this host".
     """
+
     serial = attr.ib(default=None)

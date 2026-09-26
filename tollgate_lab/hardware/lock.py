@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 import platform
 import subprocess
 import tempfile
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 _STALE_THRESHOLD = timedelta(hours=1)
@@ -58,7 +59,7 @@ def _is_stale(data: dict[str, str]) -> bool:
     ts_str = data.get("timestamp", "")
     try:
         ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
-        return datetime.now(timezone.utc) - ts > _STALE_THRESHOLD
+        return datetime.now(UTC) - ts > _STALE_THRESHOLD
     except (ValueError, TypeError):
         return True
 
@@ -67,9 +68,7 @@ def require_hardware_lock() -> None:
     """Raise if hardware.lock is missing or held by another user."""
     data = read_hardware_lock()
     if not data or data.get("locked", "false").lower() != "true":
-        raise RuntimeError(
-            "Hardware not locked — run 'make lock PHASE=\"description\"' first"
-        )
+        raise RuntimeError("Hardware not locked — run 'make lock PHASE=\"description\"' first")
     session = data.get("session", "")
     user = session.split("@")[0] if "@" in session else ""
     if user and user != os.getenv("USER", "") and not _is_stale(data):
@@ -93,7 +92,7 @@ def acquire_hardware_lock(phase: str) -> None:
         f"branch: {_git_branch()}\n"
         f"worktree: {_PROJECT_ROOT}\n"
         f"session: {_session_id()}\n"
-        f"timestamp: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}\n"
+        f"timestamp: {datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}\n"
         f"phase: {phase}\n"
     )
     parent = HARDWARE_LOCK.parent
@@ -103,15 +102,11 @@ def acquire_hardware_lock(phase: str) -> None:
             f.write(content)
         os.replace(tmp, HARDWARE_LOCK)
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.remove(tmp)
-        except OSError:
-            pass
         raise
 
 
 def release_hardware_lock() -> None:
-    try:
+    with contextlib.suppress(FileNotFoundError):
         HARDWARE_LOCK.unlink()
-    except FileNotFoundError:
-        pass

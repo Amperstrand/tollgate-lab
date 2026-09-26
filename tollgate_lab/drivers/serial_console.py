@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 import subprocess
 import sys
@@ -24,7 +25,9 @@ class SerialConsole:
                 return str(candidate)
         return sys.executable
 
-    def _run(self, args: list[str], *, timeout: int | None = 30) -> subprocess.CompletedProcess[str]:
+    def _run(
+        self, args: list[str], *, timeout: int | None = 30
+    ) -> subprocess.CompletedProcess[str]:
         cmd = [self._python(), str(_SERIAL_SCRIPT), *args]
         return subprocess.run(
             cmd,
@@ -78,10 +81,8 @@ class SerialConsole:
         return result.stdout
 
     def reboot_and_bootlog(self, timeout: int = 180) -> str:
-        try:
+        with contextlib.suppress(Exception):
             self.exec_command("reboot", timeout=15)
-        except Exception:
-            pass
         return self.bootlog(timeout=timeout)
 
     def interactive_shell(self) -> int:

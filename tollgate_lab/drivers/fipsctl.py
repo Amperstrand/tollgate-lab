@@ -3,10 +3,8 @@
 import json
 
 import attr
-
 from labgrid import target_factory
 from labgrid.driver import Driver
-from labgrid.protocol.commandprotocol import CommandProtocol
 
 
 @target_factory.reg_driver
@@ -55,10 +53,7 @@ class FipsctlDriver(Driver):
 
     @Driver.check_active
     def has_peer(self, npub: str) -> bool:
-        for peer in self.show_peers():
-            if peer.get("npub", "").startswith(npub[:16]):
-                return True
-        return False
+        return any(peer.get("npub", "").startswith(npub[:16]) for peer in self.show_peers())
 
     @Driver.check_active
     def benchmark_echo(
@@ -73,10 +68,14 @@ class FipsctlDriver(Driver):
         ``{"status": "pending"}`` if the benchmark has not yet completed.
         """
         return self.run_fipsctl(
-            "benchmark", "echo",
-            "--peer", str(peer),
-            "--count", str(count),
-            "--payload-size", str(payload_size),
+            "benchmark",
+            "echo",
+            "--peer",
+            str(peer),
+            "--count",
+            str(count),
+            "--payload-size",
+            str(payload_size),
             "--json",
         )
 
@@ -95,11 +94,17 @@ class FipsctlDriver(Driver):
         ``{"status": "pending"}`` if the benchmark has not yet completed.
         """
         return self.run_fipsctl(
-            "benchmark", "throughput",
-            "--peer", str(peer),
-            "--direction", direction,
-            "--duration", str(duration),
-            "--frame-size", str(frame_size),
-            "--rate", str(rate),
+            "benchmark",
+            "throughput",
+            "--peer",
+            str(peer),
+            "--direction",
+            direction,
+            "--duration",
+            str(duration),
+            "--frame-size",
+            str(frame_size),
+            "--rate",
+            str(rate),
             "--json",
         )

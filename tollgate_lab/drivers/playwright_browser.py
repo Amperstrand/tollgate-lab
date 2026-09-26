@@ -5,8 +5,8 @@ automation as a labgrid-compatible driver.
 """
 
 import logging
-import attr
 
+import attr
 from labgrid import target_factory
 from labgrid.driver import Driver
 

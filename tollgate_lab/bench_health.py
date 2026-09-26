@@ -55,6 +55,7 @@ def bench_health_report(cyd_port: Path | None = None) -> BenchHealth:
     # CYD: answers ID?
     try:
         from tollgate_lab.cyd_qr import CydQrClient
+
         port = str(cyd_port or Path("/dev/ttyUSB0"))
         cyd = CydQrClient(port, timeout=4.0)
         report.cyd_detail = cyd.id()
@@ -66,8 +67,10 @@ def bench_health_report(cyd_port: Path | None = None) -> BenchHealth:
     # GM65: F469 wallet CDC ScannerStatus
     try:
         import sys
+
         sys.path.insert(0, "/home/ubuntu/src/micronuts/tools/hil")
         import rig as mn_rig
+
         port = mn_rig.wait_wallet_cdc(timeout=30.0)
         cdc = mn_rig.cdc_with_retries(port, attempts=3, settle_s=3.0)
         status = cdc.scanner_status()
@@ -80,6 +83,7 @@ def bench_health_report(cyd_port: Path | None = None) -> BenchHealth:
     # Disk: >5 GB free
     try:
         import shutil
+
         free_gb = shutil.disk_usage("/").free / 1e9
         report.disk_ok = free_gb > 5.0
         report.disk_detail = f"{free_gb:.1f} GB free"
