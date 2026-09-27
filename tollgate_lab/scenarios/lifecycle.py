@@ -56,7 +56,7 @@ class StepContext:
     records: list[StepRecord] = field(default_factory=list)
 
 
-StepFn = Callable[[ScenarioRoles, StepContext], None]
+StepFn = Callable[[ScenarioRoles, StepContext], str | None]
 
 
 @dataclass(frozen=True)
@@ -66,7 +66,7 @@ class StepSpec:
     gated_by: str | None = None  # profile.step_gates() key; None = always runs
 
 
-def _rig_up(roles: ScenarioRoles, ctx: StepContext) -> None:
+def _rig_up(roles: ScenarioRoles, ctx: StepContext) -> str | None:
     adv = roles.gateway.advertisement()
     if not isinstance(adv, dict) or not adv:
         raise StepFailureError("gateway returned no advertisement")
@@ -75,51 +75,58 @@ def _rig_up(roles: ScenarioRoles, ctx: StepContext) -> None:
     if not isinstance(ssid, str) or not ssid:
         raise StepFailureError(f"advertisement lacks a usable ssid: {adv!r}")
     ctx.tollgate_ssid = ssid
+    return f"ssid={ssid} kind={adv.get('kind')}"
 
 
-def _wallet_fresh(roles: ScenarioRoles, ctx: StepContext) -> None:
+def _wallet_fresh(roles: ScenarioRoles, ctx: StepContext) -> str | None:
     status = roles.client.status()
     balance = status.get(BALANCE_KEY)
     if balance is None:
         raise StepFailureError(f"client status lacks '{BALANCE_KEY}': {status!r}")
     if ctx.profile.phases.wallet_fresh == "drained" and balance != 0:
         raise StepFailureError(f"wallet_fresh=drained but {BALANCE_KEY}={balance}")
+    return f"{BALANCE_KEY}={balance} wallet_fresh={ctx.profile.phases.wallet_fresh}"
 
 
-def _actor_mints_token(roles: ScenarioRoles, ctx: StepContext) -> None:
+def _actor_mints_token(roles: ScenarioRoles, ctx: StepContext) -> str | None:
     token = roles.gateway.mint_token(ctx.profile.payment.sats)
     if not token:
         raise StepFailureError("counterparty minted an empty token")
     roles.client.inject_token(token)
+    return f"sats={ctx.profile.payment.sats} token_chars={len(token)}"
 
 
-def _client_connects(roles: ScenarioRoles, ctx: StepContext) -> None:
+def _client_connects(roles: ScenarioRoles, ctx: StepContext) -> str | None:
     if ctx.tollgate_ssid is None:
         raise StepFailureError("rig_up did not record a tollgate ssid")
     roles.client.connect_wifi(ctx.tollgate_ssid)
     active = roles.client.active_ssid()
     if active != ctx.tollgate_ssid:
         raise StepFailureError(f"client reports ssid {active!r}, expected {ctx.tollgate_ssid!r}")
+    return f"ssid={active}"
 
 
-def _gate_closed_asserted(roles: ScenarioRoles, ctx: StepContext) -> None:
+def _gate_closed_asserted(roles: ScenarioRoles, ctx: StepContext) -> str | None:
     if roles.gateway.external_reachable(roles.client):
         raise StepFailureError("external internet reachable before payment — gate is not closed")
+    return "external_reachable=False"
 
 
-def _payment_made(roles: ScenarioRoles, ctx: StepContext) -> None:
+def _payment_made(roles: ScenarioRoles, ctx: StepContext) -> str | None:
     receipt = roles.actor.pay(roles.client, roles.gateway)
     if receipt.sats <= 0:
         raise StepFailureError(f"payment receipt carries non-positive sats: {receipt!r}")
     ctx.receipt = receipt
+    return f"sats={receipt.sats} strategy={receipt.strategy}"
 
 
-def _gate_open_asserted(roles: ScenarioRoles, ctx: StepContext) -> None:
+def _gate_open_asserted(roles: ScenarioRoles, ctx: StepContext) -> str | None:
     if not roles.gateway.external_reachable(roles.client):
         raise StepFailureError("external internet unreachable after payment — gate did not open")
+    return "external_reachable=True"
 
 
-def _session_asserted(roles: ScenarioRoles, ctx: StepContext) -> None:
+def _session_asserted(roles: ScenarioRoles, ctx: StepContext) -> str | None:
     usage = roles.gateway.usage(roles.client)
     if usage is None or usage.is_void:
         raise StepFailureError(f"no /usage session after payment: {usage!r}")
@@ -128,9 +135,10 @@ def _session_asserted(roles: ScenarioRoles, ctx: StepContext) -> None:
     state = roles.gateway.session_state(roles.client)
     if not state.is_active:
         raise StepFailureError(f"session state {state.state!r} after payment, expected 'active'")
+    return f"used={usage.used} allotment={usage.allotment} state={state.state}"
 
 
-def _renewal_observed(roles: ScenarioRoles, ctx: StepContext) -> None:
+def _renewal_observed(roles: ScenarioRoles, ctx: StepContext) -> str | None:
     before = roles.gateway.usage(roles.client)
     if before is None or before.is_void:
         raise StepFailureError(f"no /usage session before renewal window: {before!r}")
@@ -139,9 +147,12 @@ def _renewal_observed(roles: ScenarioRoles, ctx: StepContext) -> None:
         after = roles.gateway.usage(roles.client)
         if after is not None and _is_renewal(before, after):
             state = roles.gateway.session_state(roles.client)
-            if state.is_active:
-                return
-            raise StepFailureError(f"renewed usage but session state {state.state!r}")
+            if not state.is_active:
+                raise StepFailureError(f"renewed usage but session state {state.state!r}")
+            return (
+                f"before={before.used}/{before.allotment} "
+                f"after={after.used}/{after.allotment} state={state.state}"
+            )
         if time.monotonic() >= deadline:
             raise StepFailureError(
                 f"no renewal observed within {RENEWAL_TIMEOUT_S:.0f}s: "
@@ -156,16 +167,17 @@ def _is_renewal(before: Usage, after: Usage) -> bool:
     )
 
 
-def _wallet_drained(roles: ScenarioRoles, ctx: StepContext) -> None:
+def _wallet_drained(roles: ScenarioRoles, ctx: StepContext) -> str | None:
     status = roles.client.status()
     balance = status.get(BALANCE_KEY)
     if balance is None:
         raise StepFailureError(f"client status lacks '{BALANCE_KEY}': {status!r}")
     if balance != 0:
         raise StepFailureError(f"wallet not drained: {BALANCE_KEY}={balance}")
+    return f"{BALANCE_KEY}={balance}"
 
 
-def _fallback_observed(roles: ScenarioRoles, ctx: StepContext) -> None:
+def _fallback_observed(roles: ScenarioRoles, ctx: StepContext) -> str | None:
     state = roles.gateway.session_state(roles.client)
     if state.is_active:
         raise StepFailureError("session still active — fallback cannot have happened")
@@ -176,15 +188,25 @@ def _fallback_observed(roles: ScenarioRoles, ctx: StepContext) -> None:
         raise StepFailureError(f"client still on {active!r} — no fallback to another network")
     if roles.gateway.external_reachable(roles.client):
         raise StepFailureError("external internet reachable after fallback — gate should be closed")
+    return f"ssid={active} state={state.state} external_reachable=False"
 
 
-def _evidence_written(roles: ScenarioRoles, ctx: StepContext) -> None:
+def _evidence_written(roles: ScenarioRoles, ctx: StepContext) -> str | None:
     if roles.capture is None:
-        return
+        return None
     try:
         ctx.capture_result = roles.capture.stop()
     except Exception:
         log.warning("capture stop failed; evidence continues without video", exc_info=True)
+        return "capture stopped with an error (see log); no video artifacts"
+    result = ctx.capture_result
+    if result is None:
+        return None
+    video = result.video_path
+    return (
+        f"video={'none' if video is None else _artifact_hint(video, ctx.artifact_dir)} "
+        f"frames={len(result.frame_paths)}"
+    )
 
 
 CANONICAL_STEPS: tuple[StepSpec, ...] = (
@@ -229,12 +251,13 @@ def run_lifecycle(
         _capture_step(roles, spec.name)
         started = time.perf_counter()
         try:
-            spec.run(roles, ctx)
+            detail = spec.run(roles, ctx)
             record = StepRecord(
                 name=spec.name,
                 status="PASS",
                 ts=_iso_now(),
                 duration_s=time.perf_counter() - started,
+                detail=detail,
             )
         except Exception as exc:
             stopped = True

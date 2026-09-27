@@ -11,9 +11,10 @@ Semantics to preserve (docs/SCENARIO-LAYER.md §4):
   ``used/allotment``.
 - **-1/-1 by design** — the gateway scopes /usage to the client identity
   (socket MAC). A host-side probe reads ``-1/-1`` even while the client's
-  session is live. Therefore ``usage``/``session_state`` MUST execute their
-  HTTP probes **from inside the client** (the S5 lesson) — e.g. through the
-  Omarchy client's VSSH channel or the phone's adb shell.
+  session is live. Therefore ``usage``/``session_state`` MUST execute
+  their HTTP probes **from inside the client** via ``client.run_command``
+  (the S5 lesson) — the identity-scoped channel every ClientDriver
+  carries on the contract.
 - **external_reachable** — probe a paid-segment address from inside the
   client; the nft valve only opens the toll segment while a session lives.
 - **mint_token** — counterparty (fake) wallet mints a bearer Cashu token;

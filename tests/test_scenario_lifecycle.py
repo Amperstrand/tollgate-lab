@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from scenario_fakes import FakeActor, FakeCapture, FakeClient, FakeGateway
+from scenario_fakes import FailingCapture, FakeActor, FakeCapture, FakeClient, FakeGateway
 
 from tollgate_lab.scenarios.contract import ScenarioRoles, SessionState, Usage
 from tollgate_lab.scenarios.lifecycle import CANONICAL_STEPS, run_lifecycle
@@ -26,9 +26,9 @@ OPTIONAL_STEPS = ["renewal_observed", "wallet_drained", "fallback_observed"]
 
 def make_profile(**phases: object):
     data = {
-        "client": {"driver": "omarchy_ux"},
+        "client": {"driver": "omarchy_ux", "vssh": "ssh vm", "templates": "templates"},
         "payment": {"actor": "ux_button", "sats": 21},
-        "gateway": {"driver": "http_module"},
+        "gateway": {"driver": "http_module", "base": "http://127.0.0.1:2121"},
         "phases": phases or {},
     }
     return profile_from_dict(data, name="test-scenario")
@@ -70,6 +70,57 @@ def test_happy_path(tmp_path: Path):
     assert capture.steps == BASE_STEPS
     assert (tmp_path / "result.json").exists()
     assert (tmp_path / "timeline.jsonl").exists()
+
+
+def test_happy_path_records_step_details(tmp_path: Path):
+    roles, client, gateway, actor, capture = make_rig()
+
+    result = run_lifecycle(roles, make_profile(), tmp_path)
+
+    details = {s.name: s.detail for s in result.steps}
+    assert details["rig_up"] == "ssid=TollGate-Test kind=10021"
+    assert details["wallet_fresh"] == "balance_sats=0 wallet_fresh=funded"
+    assert details["actor_mints_token"] == "sats=21 token_chars=19"
+    assert details["payment_made"] == "sats=21 strategy=fake"
+    assert details["session_asserted"] == "used=0 allotment=3600 state=active"
+    assert details["evidence_written"] is not None
+    assert details["evidence_written"].startswith("video=story.webm frames=9")
+    timeline = (tmp_path / "timeline.jsonl").read_text(encoding="utf-8").splitlines()
+    assert '"detail": "sats=21 strategy=fake"' in timeline[5]
+
+
+def test_renewal_timeout_fails(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr("tollgate_lab.scenarios.lifecycle.RENEWAL_TIMEOUT_S", 0.0)
+    monkeypatch.setattr("tollgate_lab.scenarios.lifecycle.RENEWAL_POLL_INTERVAL_S", 0.0)
+    roles, client, gateway, actor, capture = make_rig()
+    gateway.usage_script = [
+        Usage(used=0, allotment=3600),  # session_asserted
+        Usage(used=0, allotment=3600),  # renewal window: flat, never renews
+    ]
+
+    result = run_lifecycle(roles, make_profile(renewal=True), tmp_path)
+
+    renewal = next(s for s in result.steps if s.name == "renewal_observed")
+    assert renewal.status == "FAIL"
+    assert "no renewal observed within" in (renewal.error or "")
+
+
+def test_capture_failures_are_not_fatal(tmp_path: Path):
+    client = FakeClient()
+    gateway = FakeGateway()
+    roles = ScenarioRoles(
+        client=client, actor=FakeActor(client), gateway=gateway, capture=FailingCapture()
+    )
+
+    result = run_lifecycle(roles, make_profile(), tmp_path)
+
+    assert result.ok, failures(result)
+    evidence = next(s for s in result.steps if s.name == "evidence_written")
+    assert evidence.status == "PASS"
+    assert "error" in (evidence.detail or "")
+    assert evidence.artifacts == ()
+    payload = json.loads((tmp_path / "result.json").read_text(encoding="utf-8"))
+    assert payload["frames"] == []
 
 
 def test_renewal_phase(tmp_path: Path):

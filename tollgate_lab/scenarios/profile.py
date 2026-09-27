@@ -18,13 +18,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, TypeVar
 
 import yaml
+
+if TYPE_CHECKING:
+    from tollgate_lab.scenarios.drivers import DriverEntry
 
 WalletFreshness = Literal["drained", "funded"]
 
 _KNOWN_WALLET_FRESHNESS = ("drained", "funded")
+
+_RegistryT = TypeVar("_RegistryT")
 
 
 @dataclass(frozen=True)
@@ -205,14 +210,20 @@ def _validate_driver_names(
         PAYMENT_ACTORS,
     )
 
-    _check_known(CLIENT_DRIVERS, client.driver, "client driver")
-    _check_known(PAYMENT_ACTORS, payment.actor, "payment actor")
-    _check_known(GATEWAY_DRIVERS, gateway.driver, "gateway driver")
+    _check_known(CLIENT_DRIVERS, client.driver, "client driver", client.config)
+    _check_known(PAYMENT_ACTORS, payment.actor, "payment actor", payment.config)
+    _check_known(GATEWAY_DRIVERS, gateway.driver, "gateway driver", gateway.config)
     if capture is not None:
-        _check_known(CAPTURE_DRIVERS, capture.driver, "capture driver")
+        _check_known(CAPTURE_DRIVERS, capture.driver, "capture driver", capture.config)
 
 
-def _check_known(registry: dict[str, Any], name: str, what: str) -> None:
-    if name not in registry:
+def _check_known(
+    registry: dict[str, DriverEntry[_RegistryT]], name: str, what: str, config: dict[str, Any]
+) -> None:
+    entry = registry.get(name)
+    if entry is None:
         known = ", ".join(sorted(registry))
         raise ValueError(f"unknown {what} '{name}' (known: {known})")
+    missing = sorted(key for key in entry.required if key not in config)
+    if missing:
+        raise ValueError(f"{what} '{name}' is missing required config key(s) {missing}")

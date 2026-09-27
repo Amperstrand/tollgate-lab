@@ -16,14 +16,15 @@ from tollgate_lab.scenarios.drivers.scenario_omarchy_ux import OmarchyUxClient, 
 from tollgate_lab.scenarios.profile import ScenarioProfile, profile_from_dict
 
 
-def stub_profile(client_driver: str = "omarchy_ux", actor: str = "ux_button") -> ScenarioProfile:
+def stub_profile(client: dict | None = None, actor: str = "ux_button") -> ScenarioProfile:
+    client_section = client or {
+        "driver": "omarchy_ux",
+        "vssh": "ssh -p 2222 omarchy@127.0.0.1",
+        "templates": "templates",
+    }
     return profile_from_dict(
         {
-            "client": {
-                "driver": client_driver,
-                "vssh": "ssh -p 2222 omarchy@127.0.0.1",
-                "templates": "templates",
-            },
+            "client": client_section,
             "payment": {"actor": actor, "template": "btn-pay-tollgate.png"},
             "gateway": {"driver": "http_module", "base": "http://127.0.0.1:2121"},
             "capture": {"driver": "wf_recorder", "split_screen": True},
@@ -65,10 +66,16 @@ def test_stub_methods_raise_not_implemented():
 
 
 def test_placeholder_driver_refuses_composition():
+    debian = {"driver": "debian_container", "ssh": "ssh debian@10.0.0.5"}
     with pytest.raises(NotImplementedError, match="declared but not implemented yet"):
-        build_roles(stub_profile(client_driver="debian_container"))
+        build_roles(stub_profile(client=debian))
+
+
+def test_placeholder_actor_refuses_composition():
+    with pytest.raises(NotImplementedError, match="payment actor 'token_paste'"):
+        build_roles(stub_profile(actor="token_paste"))
 
 
 def test_unknown_driver_refuses_composition():
     with pytest.raises(ValueError, match=r"unknown client driver 'bogus'"):
-        build_roles(stub_profile(client_driver="bogus"))
+        build_roles(stub_profile(client={"driver": "bogus"}))

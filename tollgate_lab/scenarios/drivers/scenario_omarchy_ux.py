@@ -71,6 +71,14 @@ class OmarchyUxClient:
         """Open the cashu wallet panel from the bar widget via ydotool."""
         raise NotImplementedError("port uilib open_panel (bar widget click via ydotool)")
 
+    def run_command(self, command: str, *, timeout_s: int = 15) -> str:
+        """Run a shell command inside the VM over VSSH; return stdout.
+
+        This is the identity-scoped channel gateway adapters ride for
+        /usage and /session-state probes (the S5 lesson).
+        """
+        raise NotImplementedError("port $VSSH execution with timeout handling")
+
     def click_template(self, template: str) -> tuple[int, int]:
         """vfind the template, click its center with ydotool.
 

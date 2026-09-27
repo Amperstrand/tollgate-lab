@@ -37,6 +37,7 @@ class FakeClient:
         self.token_value = 21
         self.tokens: list[str] = []
         self.wifi_calls: list[str] = []
+        self.commands: list[str] = []
         self.opened = False
         self._ssid: str | None = None
         self.active_ssid_script: list[str | None] = []
@@ -57,6 +58,10 @@ class FakeClient:
 
     def open_wallet_ux(self) -> None:
         self.opened = True
+
+    def run_command(self, command: str, *, timeout_s: int = 15) -> str:
+        self.commands.append(command)
+        return f"ran: {command}"
 
 
 class FakeActor:
@@ -109,6 +114,19 @@ class FakeGateway:
         self.calls.append("mint_token")
         self.mint_count += 1
         return f"fake-token-{self.mint_count}-{sats}sats"
+
+
+class FailingCapture:
+    """CaptureDriver whose every call raises — exercises best-effort paths."""
+
+    def start(self, artifact_dir: Path) -> None:
+        raise RuntimeError("encoder unavailable")
+
+    def step(self, name: str) -> None:
+        raise RuntimeError("marker grab failed")
+
+    def stop(self) -> CaptureResult:
+        raise RuntimeError("recorder stop failed")
 
 
 class FakeCapture:

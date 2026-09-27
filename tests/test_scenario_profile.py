@@ -19,7 +19,11 @@ SHIPPED_PROFILES = [
 
 def minimal_profile_dict() -> dict:
     return {
-        "client": {"driver": "omarchy_ux", "vssh": "ssh -p 2222 omarchy@127.0.0.1"},
+        "client": {
+            "driver": "omarchy_ux",
+            "vssh": "ssh -p 2222 omarchy@127.0.0.1",
+            "templates": "templates",
+        },
         "payment": {"actor": "ux_button"},
         "gateway": {"driver": "http_module", "base": "http://127.0.0.1:2121"},
     }
@@ -144,6 +148,41 @@ def test_payment_sats_default_and_override():
     data = minimal_profile_dict()
     data["payment"]["sats"] = 50
     assert profile_from_dict(data, name="t").payment.sats == 50
+
+
+def test_missing_required_client_kwargs():
+    data = minimal_profile_dict()
+    del data["client"]["templates"]
+    with pytest.raises(ValueError, match=r"client driver 'omarchy_ux' is missing required"):
+        profile_from_dict(data, name="t")
+
+
+def test_missing_required_actor_kwargs():
+    data = minimal_profile_dict()
+    data["payment"] = {"actor": "portal_tip03"}
+    with pytest.raises(ValueError, match=r"payment actor 'portal_tip03' is missing required"):
+        profile_from_dict(data, name="t")
+
+
+def test_missing_required_gateway_kwargs():
+    data = minimal_profile_dict()
+    del data["gateway"]["base"]
+    with pytest.raises(ValueError, match=r"gateway driver 'http_module' is missing required"):
+        profile_from_dict(data, name="t")
+
+
+def test_non_mapping_section_rejected():
+    data = minimal_profile_dict()
+    data["client"] = "just-a-string"
+    with pytest.raises(ValueError, match="section 'client' must be a mapping"):
+        profile_from_dict(data, name="t")
+
+
+def test_empty_driver_name_rejected():
+    data = minimal_profile_dict()
+    data["client"]["driver"] = ""
+    with pytest.raises(ValueError, match="non-empty string 'driver'"):
+        profile_from_dict(data, name="t")
 
 
 def test_invalid_yaml_reports_file(tmp_path: Path):

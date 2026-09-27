@@ -117,6 +117,16 @@ class ClientDriver(Protocol):
         """Open the wallet panel/app so UX-driven actors can click it."""
         ...
 
+    def run_command(self, command: str, *, timeout_s: int = 15) -> str:
+        """Execute a shell command inside the client; returns stdout.
+
+        This is the identity-scoped channel the S5 lesson demands: the
+        gateway scopes /usage to the client's identity (socket MAC), so a
+        host-side probe reads -1/-1 by design. Gateway adapters MUST ride
+        this channel for their probes, never a host-side connection.
+        """
+        ...
+
 
 class PaymentActor(Protocol):
     """How the toll gets paid on this rig."""

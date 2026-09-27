@@ -1,7 +1,9 @@
-"""Scenario driver registry: names → adapter factories.
+"""Scenario driver registry: names → adapter factories + required config.
 
 Profiles reference drivers by name (docs/SCENARIO-LAYER.md §3); validation
-checks names against these registries. Entries mapped to ``None`` are
+checks names AND required kwargs against these registries, so a malformed
+profile fails at load time with a clear error instead of a TypeError deep
+inside adapter construction. Entries with ``factory=None`` are
 declared-but-not-yet-ported adapters: profile validation accepts them, but
 ``build_roles`` refuses to compose them until the port lands.
 """
@@ -9,7 +11,8 @@ declared-but-not-yet-ported adapters: profile validation accepts them, but
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, TypeVar
+from dataclasses import dataclass
+from typing import Any, Generic, TypeVar
 
 from tollgate_lab.scenarios.contract import (
     CaptureDriver,
@@ -27,43 +30,53 @@ from tollgate_lab.scenarios.profile import ScenarioProfile
 __all__ = [
     "CAPTURE_DRIVERS",
     "CLIENT_DRIVERS",
+    "DriverEntry",
     "GATEWAY_DRIVERS",
     "PAYMENT_ACTORS",
     "build_roles",
 ]
 
-CLIENT_DRIVERS: dict[str, Callable[..., ClientDriver] | None] = {
-    "omarchy_ux": OmarchyUxClient,
+_DriverT = TypeVar("_DriverT")
+
+
+@dataclass(frozen=True)
+class DriverEntry(Generic[_DriverT]):
+    """One registry slot: adapter factory (or None) + required profile keys."""
+
+    factory: Callable[..., _DriverT] | None = None
+    required: tuple[str, ...] = ()
+
+
+CLIENT_DRIVERS: dict[str, DriverEntry[ClientDriver]] = {
+    "omarchy_ux": DriverEntry(OmarchyUxClient, required=("vssh", "templates")),
     # Debian container client over the PRTA QEMU path (Phase 2 migration).
-    "debian_container": None,
+    "debian_container": DriverEntry(None, required=("ssh",)),
     # Physical phone via tollgate_lab.drivers.android_adb (finale rig).
-    "phone_adb": None,
+    "phone_adb": DriverEntry(None),
     # Cuttlefish virtual phone (cloud Android).
-    "phone_cuttlefish": None,
+    "phone_cuttlefish": DriverEntry(None, required=("cf_base",)),
 }
 
-PAYMENT_ACTORS: dict[str, Callable[..., PaymentActor] | None] = {
-    "ux_button": UxButtonActor,
+PAYMENT_ACTORS: dict[str, DriverEntry[PaymentActor]] = {
+    "ux_button": DriverEntry(UxButtonActor),
     # Paste a token straight into the client wallet / CLI.
-    "token_paste": None,
-    "portal_tip03": PortalTip03Actor,
+    "token_paste": DriverEntry(None),
+    "portal_tip03": DriverEntry(PortalTip03Actor, required=("portal",)),
     # Client-side CLI payment (cashud /tollgate/pay).
-    "cli": None,
+    "cli": DriverEntry(None),
     # No-op actor for rigs that assert unpaid-gate behavior only.
-    "skip": None,
+    "skip": DriverEntry(None),
 }
 
-GATEWAY_DRIVERS: dict[str, Callable[..., GatewayDriver] | None] = {
-    "http_module": HttpModuleGateway,
+GATEWAY_DRIVERS: dict[str, DriverEntry[GatewayDriver]] = {
+    "http_module": DriverEntry(HttpModuleGateway, required=("base",)),
 }
 
-CAPTURE_DRIVERS: dict[str, Callable[..., CaptureDriver] | None] = {
-    "wf_recorder": WfRecorderCapture,
+CAPTURE_DRIVERS: dict[str, DriverEntry[CaptureDriver]] = {
+    "wf_recorder": DriverEntry(WfRecorderCapture),
     # PRTA EvidenceRecorder wrapper (Phase 2 migration).
-    "evidence_recorder": None,
+    "evidence_recorder": DriverEntry(None),
 }
-
-_T = TypeVar("_T")
 
 
 def build_roles(profile: ScenarioProfile) -> ScenarioRoles:
@@ -88,12 +101,12 @@ def build_roles(profile: ScenarioProfile) -> ScenarioRoles:
 
 
 def _construct(
-    registry: dict[str, Callable[..., _T] | None], name: str, what: str, config: dict[str, Any]
-) -> _T:
-    if name not in registry:
+    registry: dict[str, DriverEntry[_DriverT]], name: str, what: str, config: dict[str, Any]
+) -> _DriverT:
+    entry = registry.get(name)
+    if entry is None:
         known = ", ".join(sorted(registry))
         raise ValueError(f"unknown {what} '{name}' (known: {known})")
-    factory = registry[name]
-    if factory is None:
+    if entry.factory is None:
         raise NotImplementedError(f"{what} '{name}' is declared but not implemented yet")
-    return factory(**config)
+    return entry.factory(**config)
