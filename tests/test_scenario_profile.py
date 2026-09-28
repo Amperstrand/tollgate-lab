@@ -210,3 +210,27 @@ def test_profile_ssid_optional_nonempty_string():
     assert profile_from_dict(with_ssid, name="ssid").ssid == "TollGate-X"
     with pytest.raises(ValueError, match="ssid"):
         profile_from_dict(dict(base, ssid=""), name="empty-ssid")
+
+
+def test_load_profile_expands_env_with_defaults(tmp_path: Path, monkeypatch):
+    body = (
+        "client:\n"
+        "  driver: omarchy_ux\n"
+        '  vssh: "ssh ${RIG_VSSH:-fallback-host}"\n'
+        "  templates: t\n"
+        "payment:\n"
+        "  actor: ux_button\n"
+        "gateway:\n"
+        '  driver: http_module\n'
+        '  base: "http://${RIG_GW_HOST:-127.0.0.1}:2121"\n'
+    )
+    path = tmp_path / "env-profile.yaml"
+    path.write_text(body)
+
+    monkeypatch.delenv("RIG_VSSH", raising=False)
+    monkeypatch.setenv("RIG_GW_HOST", "10.99.99.1")
+
+    profile = load_profile(path)
+
+    assert profile.client.config["vssh"] == "ssh fallback-host"
+    assert profile.gateway.config["base"] == "http://10.99.99.1:2121"

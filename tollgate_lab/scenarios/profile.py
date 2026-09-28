@@ -16,6 +16,8 @@ names fail with an error listing the known ones.
 
 from __future__ import annotations
 
+import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TypeVar
@@ -92,7 +94,34 @@ def load_profile(path: Path | str) -> ScenarioProfile:
         raise ValueError(f"invalid YAML in {profile_path}: {exc}") from exc
     if not isinstance(raw, dict):
         raise ValueError(f"profile {profile_path} must be a YAML mapping, got {type(raw).__name__}")
-    return profile_from_dict(raw, name=profile_path.stem)
+    return profile_from_dict(_expand_env(raw), name=profile_path.stem)
+
+
+_ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
+
+
+def _expand_env(value: Any) -> Any:
+    """Expand ``${VAR}`` / ``${VAR:-default}`` in profile string values.
+
+    Lets one shipped profile compose per rig from the environment (a
+    profile is launch CONFIG, not a frozen rig snapshot): consumers set
+    e.g. ``TOLLGATE_GW_BASE`` instead of forking a YAML per gateway.
+    """
+    if isinstance(value, dict):
+        return {k: _expand_env(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_expand_env(v) for v in value]
+    if not isinstance(value, str):
+        return value
+
+    def _sub(match: re.Match[str]) -> str:
+        name, default = match.group(1), match.group(2)
+        env = os.environ.get(name)
+        if env is not None and env != "":
+            return env
+        return default if default is not None else ""
+
+    return _ENV_PATTERN.sub(_sub, value)
 
 
 def profile_from_dict(data: dict[str, Any], *, name: str) -> ScenarioProfile:
