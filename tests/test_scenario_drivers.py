@@ -59,8 +59,8 @@ def test_stub_methods_raise_not_implemented():
     roles = build_roles(stub_profile())
 
     assert roles.client.name == "omarchy_ux"
-    with pytest.raises(NotImplementedError, match="nmcli"):
-        roles.client.connect_wifi("TollGate-Test")
+    # The omarchy_ux client + wf_recorder capture bodies landed (phase 1);
+    # the http_module gateway remains a spec stub until its phase.
     with pytest.raises(NotImplementedError, match="/usage"):
         roles.gateway.usage(FakeClient())
 

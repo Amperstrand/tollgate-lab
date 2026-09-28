@@ -28,6 +28,13 @@ dev = [
     "types-PyYAML>=6.0",
     "pytest-cov>=5.0",
 ]
+# UX-adapter extras for the omarchy_ux / wf_recorder scenario drivers —
+# OpenCV template matching (GuestVision) and the zwlr virtual-pointer
+# backend. Never core deps: unit tests run without either (fakes).
+ux = [
+    "opencv-python-headless>=4.8",
+    "pywayland>=0.15.1",
+]
 
 [tool.ruff]
 line-length = 100
