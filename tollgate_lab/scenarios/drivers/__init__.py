@@ -97,11 +97,14 @@ def register_driver(
     swapped by a stray import.
     """
     existing = registry.get(name)
-    if existing is not None and existing.factory is not None and not replace:
-        raise ValueError(
-            f"driver '{name}' already has a factory "
-            f"({existing.factory.__name__}); pass replace=True to override"
-        )
+    if existing is not None and existing.factory is not None:
+        if existing.factory is factory:
+            return  # idempotent re-registration (import side effects)
+        if not replace:
+            raise ValueError(
+                f"driver '{name}' already has a factory "
+                f"({existing.factory.__name__}); pass replace=True to override"
+            )
     registry[name] = DriverEntry(factory, required=required)
 
 

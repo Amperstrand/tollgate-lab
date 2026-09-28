@@ -109,3 +109,13 @@ def test_register_driver_fills_empty_and_guards_replacement():
         register_driver(registry, "live", factory_b)
     register_driver(registry, "live", factory_b, replace=True)
     assert registry["live"].factory is factory_b
+
+
+def test_register_driver_is_idempotent_for_same_factory():
+    def factory(**kwargs):
+        return object()
+
+    registry: dict[str, DriverEntry] = {}
+    register_driver(registry, "x", factory)
+    register_driver(registry, "x", factory)  # import side effects re-register
+    assert registry["x"].factory is factory
