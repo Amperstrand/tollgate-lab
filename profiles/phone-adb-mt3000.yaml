@@ -1,0 +1,19 @@
+# phone-adb-mt3000 — the finale rig: physical phone (adb) paying the
+# GL-MT3000-backed gateway through the TIP-03 portal.
+client:
+  driver: phone_adb
+  serial: ""
+payment:
+  actor: portal_tip03
+  portal: "http://10.99.97.2:8080/portal"
+  sats: 21
+gateway:
+  driver: http_module
+  base: "http://10.99.97.2:2121"
+  token_source: fakewallet
+capture:
+  driver: evidence_recorder
+phases:
+  renewal: true
+  drain_and_fallback: true
+  wallet_fresh: drained
