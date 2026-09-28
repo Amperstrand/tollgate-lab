@@ -39,7 +39,7 @@ class PortalTip03Actor:
     def __init__(self, *, portal: str) -> None:
         self._portal = portal
 
-    def pay(self, client: ClientDriver, gateway: GatewayDriver) -> PayReceipt:
+    def pay(self, client: ClientDriver, gateway: GatewayDriver, *, sats: int) -> PayReceipt:
         """Drive portal_ready → token_typing → Purchase/Pay → authed.
 
         The browser session lives on the client device (phone browser or

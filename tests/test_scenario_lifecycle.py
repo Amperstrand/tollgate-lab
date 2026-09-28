@@ -230,3 +230,54 @@ def test_evidence_written_always_last(tmp_path: Path):
 
     assert result.steps[-1].name == "evidence_written"
     assert [s.status for s in result.steps] == ["FAIL"] + ["SKIP"] * 10 + ["PASS"]
+
+
+def test_actor_receives_profile_sats(tmp_path: Path):
+    roles, client, gateway, actor, capture = make_rig()
+    profile = profile_from_dict(
+        {
+            "client": {"driver": "omarchy_ux", "vssh": "ssh vm", "templates": "t"},
+            "payment": {"actor": "ux_button", "sats": 7},
+            "gateway": {"driver": "http_module", "base": "http://127.0.0.1:2121"},
+            "phases": {},
+        },
+        name="sats-pass-through",
+    )
+
+    result = run_lifecycle(roles, profile, tmp_path)
+
+    assert result.ok, failures(result)
+    payment = next(s for s in result.steps if s.name == "payment_made")
+    assert "sats=7" in (payment.detail or "")
+    assert actor.pay_calls == 1
+
+
+def test_ssid_falls_back_to_profile(tmp_path: Path):
+    client = FakeClient(balance_sats=0)
+    gateway = FakeGateway(ssid=None)
+    roles = ScenarioRoles(client=client, actor=FakeActor(client), gateway=gateway, capture=None)
+    profile = profile_from_dict(
+        {
+            "client": {"driver": "omarchy_ux", "vssh": "ssh vm", "templates": "t"},
+            "payment": {"actor": "ux_button"},
+            "gateway": {"driver": "http_module", "base": "http://127.0.0.1:2121"},
+            "ssid": "TollGate-FromProfile",
+        },
+        name="ssid-fallback",
+    )
+
+    result = run_lifecycle(roles, profile, tmp_path)
+
+    assert result.ok, failures(result)
+    assert client.wifi_calls == ["TollGate-FromProfile"]
+
+
+def test_rig_up_fails_without_any_ssid(tmp_path: Path):
+    client = FakeClient(balance_sats=0)
+    gateway = FakeGateway(ssid=None)
+    roles = ScenarioRoles(client=client, actor=FakeActor(client), gateway=gateway, capture=None)
+
+    result = run_lifecycle(roles, make_profile(), tmp_path)
+
+    assert not result.ok
+    assert failures(result)[0].name == "rig_up"

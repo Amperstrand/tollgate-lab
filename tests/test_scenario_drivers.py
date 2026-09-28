@@ -9,7 +9,9 @@ from tollgate_lab.scenarios.drivers import (
     CLIENT_DRIVERS,
     GATEWAY_DRIVERS,
     PAYMENT_ACTORS,
+    DriverEntry,
     build_roles,
+    register_driver,
 )
 from tollgate_lab.scenarios.drivers.scenario_http_module import HttpModuleGateway
 from tollgate_lab.scenarios.drivers.scenario_omarchy_ux import OmarchyUxClient, UxButtonActor
@@ -79,3 +81,31 @@ def test_placeholder_actor_refuses_composition():
 def test_unknown_driver_refuses_composition():
     with pytest.raises(ValueError, match=r"unknown client driver 'bogus'"):
         build_roles(stub_profile(client={"driver": "bogus"}))
+
+
+def test_register_driver_fills_empty_and_guards_replacement():
+    class A:
+        pass
+
+    class B:
+        pass
+
+    registry: dict[str, DriverEntry[A]] = {
+        "stub": DriverEntry(None),
+        "live": DriverEntry(A),
+    }
+
+    # filling an empty slot is fine — the registry is untyped at runtime
+    def factory_a(**kwargs):
+        return A()
+
+    register_driver(registry, "stub", factory_a)
+    assert registry["stub"].factory is factory_a
+
+    def factory_b(**kwargs):
+        return B()
+
+    with pytest.raises(ValueError, match="replace=True"):
+        register_driver(registry, "live", factory_b)
+    register_driver(registry, "live", factory_b, replace=True)
+    assert registry["live"].factory is factory_b

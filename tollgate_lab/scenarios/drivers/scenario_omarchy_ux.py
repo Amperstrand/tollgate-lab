@@ -182,7 +182,7 @@ class UxButtonActor:
         self._timeout_s = session_timeout_s
         self._interval_s = poll_interval_s
 
-    def pay(self, client: ClientDriver, gateway: GatewayDriver) -> PayReceipt:
+    def pay(self, client: ClientDriver, gateway: GatewayDriver, *, sats: int) -> PayReceipt:
         """Open panel → vfind pay button → click → wait for the session.
 
         Success signal is a live session in the wallet's /status (the bar

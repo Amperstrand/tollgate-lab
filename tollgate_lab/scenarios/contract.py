@@ -15,6 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import urlparse
 
 __all__ = [
     "CaptureDriver",
@@ -26,6 +27,7 @@ __all__ = [
     "ScenarioRoles",
     "SessionState",
     "Usage",
+    "is_captive_redirect",
 ]
 
 
@@ -133,8 +135,14 @@ class PaymentActor(Protocol):
 
     strategy: str  # ux_button|token_paste|portal_tip03|cli|skip
 
-    def pay(self, client: ClientDriver, gateway: GatewayDriver) -> PayReceipt:
-        """Perform one tollgate payment; raise on failure."""
+    def pay(self, client: ClientDriver, gateway: GatewayDriver, *, sats: int) -> PayReceipt:
+        """Perform one tollgate payment of ``sats``; raise on failure.
+
+        The amount is passed by the lifecycle (``profile.payment.sats``):
+        the validator reserves ``sats`` out of the actor's config kwargs,
+        so this parameter is the ONLY way an actor learns what a receipt
+        must report.
+        """
         ...
 
 
@@ -154,7 +162,14 @@ class GatewayDriver(Protocol):
         ...
 
     def external_reachable(self, client: ClientDriver) -> bool:
-        """Can the client reach the paid internet segment?"""
+        """Can the client reach the paid internet segment?
+
+        A 3xx answer alone is NOT proof of internet: the captive portal
+        itself answers with a redirect (e.g. 307 → gateway:2050/splash)
+        while the real internet often 301/307-redirects too (http→https).
+        Implementations MUST distinguish by redirect TARGET, not code —
+        see :func:`is_captive_redirect`.
+        """
         ...
 
     def mint_token(self, sats: int) -> str:
@@ -192,3 +207,16 @@ class ScenarioRoles:
             raise ValueError("client driver must carry a non-empty name")
         if not self.actor.strategy:
             raise ValueError("payment actor must carry a non-empty strategy")
+
+
+def is_captive_redirect(redirect_url: str, gateway_base: str) -> bool:
+    """True when a 3xx target points back at the gateway's own portal.
+
+    Bench-verified 2026-09-28 (rust-basic v0.6.1 gateway): ``http://1.1.1.1/``
+    answers **301 → https://1.1.1.1** while the gate is OPEN and
+    **307 → http://<gateway>:2050/splash.html** while CLOSED — both are
+    3xx. ``external_reachable`` implementations must treat only the
+    second as "not reachable".
+    """
+    host = urlparse(gateway_base).hostname or ""
+    return bool(host) and host in redirect_url

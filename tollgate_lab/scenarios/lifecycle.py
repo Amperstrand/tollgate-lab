@@ -71,9 +71,13 @@ def _rig_up(roles: ScenarioRoles, ctx: StepContext) -> str | None:
     if not isinstance(adv, dict) or not adv:
         raise StepFailureError("gateway returned no advertisement")
     ctx.advertisement = adv
-    ssid = adv.get("ssid")
+    # kind 10021 events on some backends carry no ssid tag — the
+    # profile's top-level `ssid` is the documented fallback.
+    ssid = adv.get("ssid") or ctx.profile.ssid
     if not isinstance(ssid, str) or not ssid:
-        raise StepFailureError(f"advertisement lacks a usable ssid: {adv!r}")
+        raise StepFailureError(
+            f"no ssid from advertisement or profile: adv={adv!r} profile.ssid={ctx.profile.ssid!r}"
+        )
     ctx.tollgate_ssid = ssid
     return f"ssid={ssid} kind={adv.get('kind')}"
 
@@ -113,7 +117,7 @@ def _gate_closed_asserted(roles: ScenarioRoles, ctx: StepContext) -> str | None:
 
 
 def _payment_made(roles: ScenarioRoles, ctx: StepContext) -> str | None:
-    receipt = roles.actor.pay(roles.client, roles.gateway)
+    receipt = roles.actor.pay(roles.client, roles.gateway, sats=ctx.profile.payment.sats)
     if receipt.sats <= 0:
         raise StepFailureError(f"payment receipt carries non-positive sats: {receipt!r}")
     ctx.receipt = receipt

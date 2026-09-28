@@ -73,10 +73,10 @@ class FakeActor:
         self.sats = sats
         self.pay_calls = 0
 
-    def pay(self, client: ClientDriver, gateway: GatewayDriver) -> PayReceipt:
+    def pay(self, client: ClientDriver, gateway: GatewayDriver, *, sats: int) -> PayReceipt:
         self.pay_calls += 1
-        self._client.balance_sats -= self.sats
-        return PayReceipt(sats=self.sats, strategy=self.strategy, token="fake-token-spent")
+        self._client.balance_sats -= sats
+        return PayReceipt(sats=sats, strategy=self.strategy, token="fake-token-spent")
 
 
 class FakeGateway:

@@ -197,3 +197,16 @@ def test_non_mapping_profile_rejected(tmp_path: Path):
     flat.write_text("- just\n- a\n- list\n", encoding="utf-8")
     with pytest.raises(ValueError, match="must be a YAML mapping"):
         load_profile(flat)
+
+
+def test_profile_ssid_optional_nonempty_string():
+    base = {
+        "client": {"driver": "omarchy_ux", "vssh": "ssh vm", "templates": "t"},
+        "payment": {"actor": "ux_button"},
+        "gateway": {"driver": "http_module", "base": "http://127.0.0.1:2121"},
+    }
+    assert profile_from_dict(base, name="no-ssid").ssid is None
+    with_ssid = dict(base, ssid="TollGate-X")
+    assert profile_from_dict(with_ssid, name="ssid").ssid == "TollGate-X"
+    with pytest.raises(ValueError, match="ssid"):
+        profile_from_dict(dict(base, ssid=""), name="empty-ssid")

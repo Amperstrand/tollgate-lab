@@ -34,6 +34,7 @@ __all__ = [
     "GATEWAY_DRIVERS",
     "PAYMENT_ACTORS",
     "build_roles",
+    "register_driver",
 ]
 
 _DriverT = TypeVar("_DriverT")
@@ -77,6 +78,31 @@ CAPTURE_DRIVERS: dict[str, DriverEntry[CaptureDriver]] = {
     # PRTA EvidenceRecorder wrapper (Phase 2 migration).
     "evidence_recorder": DriverEntry(None),
 }
+
+
+def register_driver(
+    registry: dict[str, DriverEntry[_DriverT]],
+    name: str,
+    factory: Callable[..., _DriverT],
+    required: tuple[str, ...] = (),
+    *,
+    replace: bool = False,
+) -> None:
+    """Register an adapter factory from consumer code.
+
+    The supported extension path for stacks that live outside this
+    package (PRTA, fips): fill a declared-but-unimplemented slot
+    (``factory=None``) directly, and override a stub factory only with
+    ``replace=True`` so a live implementation can never be silently
+    swapped by a stray import.
+    """
+    existing = registry.get(name)
+    if existing is not None and existing.factory is not None and not replace:
+        raise ValueError(
+            f"driver '{name}' already has a factory "
+            f"({existing.factory.__name__}); pass replace=True to override"
+        )
+    registry[name] = DriverEntry(factory, required=required)
 
 
 def build_roles(profile: ScenarioProfile) -> ScenarioRoles:

@@ -72,6 +72,7 @@ class ScenarioProfile:
     gateway: GatewaySpec
     capture: CaptureSpec | None = None
     phases: PhaseFlags = PhaseFlags()
+    ssid: str | None = None
 
     def step_gates(self) -> dict[str, bool]:
         """Optional-step gates derived from the phase flags."""
@@ -97,7 +98,7 @@ def load_profile(path: Path | str) -> ScenarioProfile:
 def profile_from_dict(data: dict[str, Any], *, name: str) -> ScenarioProfile:
     """Validate a parsed profile mapping into a ScenarioProfile."""
     _reject_unknown_keys(
-        set(data), ("client", "payment", "gateway", "capture", "phases"), "profile"
+        set(data), ("client", "payment", "gateway", "capture", "phases", "ssid"), "profile"
     )
 
     client = _client_spec(data.get("client"))
@@ -105,10 +106,19 @@ def profile_from_dict(data: dict[str, Any], *, name: str) -> ScenarioProfile:
     gateway = _gateway_spec(data.get("gateway"))
     capture = _capture_spec(data.get("capture"))
     phases = _phase_flags(data.get("phases"))
+    ssid = data.get("ssid")
+    if ssid is not None and (not isinstance(ssid, str) or not ssid):
+        raise ValueError(f"profile ssid must be a non-empty string, got {ssid!r}")
 
     _validate_driver_names(client, payment, gateway, capture)
     return ScenarioProfile(
-        name=name, client=client, payment=payment, gateway=gateway, capture=capture, phases=phases
+        name=name,
+        client=client,
+        payment=payment,
+        gateway=gateway,
+        capture=capture,
+        phases=phases,
+        ssid=ssid,
     )
 
 

@@ -8,6 +8,7 @@ from tollgate_lab.scenarios.contract import (
     ScenarioRoles,
     SessionState,
     Usage,
+    is_captive_redirect,
 )
 
 
@@ -56,3 +57,11 @@ def test_scenario_roles_accepts_full_bundle():
     roles = ScenarioRoles(client=client, actor=FakeActor(client), gateway=FakeGateway())
     assert roles.capture is None
     assert roles.client.name == "fake_client"
+
+
+def test_is_captive_redirect_distinguishes_targets():
+    assert is_captive_redirect(
+        "http://10.99.99.1:2050/splash.html?redir=x", "http://10.99.99.1:2121"
+    )
+    assert not is_captive_redirect("https://1.1.1.1/", "http://10.99.99.1:2121")
+    assert not is_captive_redirect("", "http://10.99.99.1:2121")
