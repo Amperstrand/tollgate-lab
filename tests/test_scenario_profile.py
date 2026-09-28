@@ -221,7 +221,7 @@ def test_load_profile_expands_env_with_defaults(tmp_path: Path, monkeypatch):
         "payment:\n"
         "  actor: ux_button\n"
         "gateway:\n"
-        '  driver: http_module\n'
+        "  driver: http_module\n"
         '  base: "http://${RIG_GW_HOST:-127.0.0.1}:2121"\n'
     )
     path = tmp_path / "env-profile.yaml"
