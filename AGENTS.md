@@ -190,6 +190,33 @@ make lint    # ruff check + ruff format --check (line-length 100, py311)
 - **[physical-router-test-automation](https://github.com/Amperstrand/physical-router-test-automation)**
   — TollGate WiFi payment tests. Migrated `lib/` modules to tollgate-lab.
 
+## Scenario layer (branch `scenario-layer`, PR #10)
+
+`tollgate_lab/scenarios/` — the DRY story runner (4 driver Protocols:
+ClientDriver / PaymentActor / GatewayDriver / CaptureDriver; YAML profiles;
+canonical lifecycle `run_lifecycle`; result.json + timeline.jsonl evidence).
+Design: `docs/SCENARIO-LAYER.md`. First consumer validated end-to-end:
+PRTA's `scenario-layer-poc` branch (live 9/9 lifecycle, debian-container
+profile). Consumer-validation contract changes landed 2026-09-28:
+
+- `PaymentActor.pay(client, gateway, *, sats)` — the lifecycle passes
+  `profile.payment.sats`; actors cannot learn it any other way (the
+  validator reserves `sats` out of actor config).
+- `ScenarioProfile.ssid` — optional top-level fallback; kind 10021
+  events on some backends carry no ssid tag.
+- `register_driver(registry, name, factory, required, *, replace=False)`
+  — the formal consumer extension path (fill empty slots; override live
+  factories only with replace=True; same-factory re-registration is a
+  no-op).
+- `contract.is_captive_redirect()` — 3xx-to-portal vs 3xx-to-internet;
+  `external_reachable` implementations MUST distinguish by redirect
+  target, not code class.
+- Profile values expand `${VAR}` / `${VAR:-default}` — one profile
+  composes per rig from the environment.
+
+Friction findings (10, must-fix vs nice-to-have) are on PR #10:
+https://github.com/Amperstrand/tollgate-lab/pull/10#issuecomment-5862216143
+
 ## Open issues
 
 ### Issue #1 — Migration roadmap (OPEN)
