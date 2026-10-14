@@ -45,8 +45,28 @@ class AndroidADBDriver(Driver, CommandProtocol):
         else:
             self._serial = ""
 
+    def _adb_prefix(self) -> list[str]:
+        """adb command prefix honoring the NetworkService binding.
+
+        The binding names the USB host that owns the device (per the
+        class docstring's design). When it points at another host, adb
+        runs there over SSH — the test host is then location-agnostic
+        and no adb-server tunneling is needed.
+        """
+        ns = self.network
+        address = getattr(ns, "address", None)
+        if not address or address in ("localhost", "127.0.0.1"):
+            return ["adb"]
+        user = getattr(ns, "username", None) or "root"
+        port = getattr(ns, "port", None)
+        prefix = ["ssh", "-o", "BatchMode=yes"]
+        if port:
+            prefix += ["-p", str(port)]
+        prefix.append(f"{user}@{address}")
+        return prefix + ["adb"]
+
     def _adb(self, args: list[str], timeout: float = 30.0) -> subprocess.CompletedProcess:
-        cmd = ["adb"]
+        cmd = self._adb_prefix()
         if self._serial:
             cmd += ["-s", self._serial]
         cmd += args
