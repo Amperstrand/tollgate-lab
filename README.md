@@ -4,6 +4,12 @@ Unified hardware testing library for TollGate, FIPS, and Amperstrand embedded
 projects. Built on [labgrid](https://github.com/labgrid-project/labgrid) for
 device orchestration.
 
+> **Bench/labgrid canon:** coordinator topology, exporter fleet,
+> reservation queueing (`reserve --wait`), exclusion domains and the
+> trusted-network model live in **conwrt-bench
+> `docs/labgrid-coordination.md`** (private, org-wide single source of
+> truth). This library implements the device-driver layer on top of it.
+
 ## Supported Hardware
 
 | Device Type | Driver | Transport |
