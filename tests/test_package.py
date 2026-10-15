@@ -1,6 +1,5 @@
 """Tests for tollgate-lab package."""
 
-import pytest
 
 
 def test_package_imports():

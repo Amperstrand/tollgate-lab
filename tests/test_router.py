@@ -1,8 +1,8 @@
 """Unit tests for Router driver (mocked subprocess)."""
 
-import subprocess
-from unittest.mock import patch, MagicMock
-from tollgate_lab.drivers.router import Router, BackendConfig
+from unittest.mock import MagicMock, patch
+
+from tollgate_lab.drivers.router import BackendConfig, Router
 
 
 def test_backend_config_defaults():

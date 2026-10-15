@@ -1,12 +1,10 @@
 """Unit tests for hardware lock."""
 
-import os
-import json
-from pathlib import Path
+
 from tollgate_lab.hardware.lock import (
+    acquire_hardware_lock,
     is_hardware_locked,
     read_hardware_lock,
-    acquire_hardware_lock,
     release_hardware_lock,
 )
 

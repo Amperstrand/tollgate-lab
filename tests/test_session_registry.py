@@ -6,7 +6,6 @@ end(); faked with a subprocess that begins a session and _exit()s.
 
 import json
 import os
-
 import subprocess
 import sys
 import time

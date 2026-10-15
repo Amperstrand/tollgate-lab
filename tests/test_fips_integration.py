@@ -12,8 +12,9 @@ Requires a router accessible via SSH. Set ROUTER_SSH_HOST env var.
 """
 
 import os
-import time
 import subprocess
+import time
+
 import pytest
 
 from tollgate_lab.deploy.fips import default_fips_config

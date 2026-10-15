@@ -1,7 +1,9 @@
 """Tests for tollgate-lab cloud provisioning."""
 
 import os
+
 import pytest
+
 from tollgate_lab.cloud.provider import VMConfig, VMInstance, get_provider, list_providers
 
 

@@ -4,8 +4,8 @@ Tests TollGate deployment alongside FIPS on OpenWrt routers.
 """
 
 import os
-import time
 import subprocess
+
 import pytest
 
 

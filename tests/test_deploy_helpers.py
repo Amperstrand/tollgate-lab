@@ -1,7 +1,7 @@
 """Tests for FIPS and TollGate deploy helpers."""
 
-from tollgate_lab.deploy.fips import default_fips_config, FIPS_SERVICE_NAME
-from tollgate_lab.deploy.tollgate import TOLLGATE_SERVICE, TOLLGATE_REPO
+from tollgate_lab.deploy.fips import FIPS_SERVICE_NAME, default_fips_config
+from tollgate_lab.deploy.tollgate import TOLLGATE_REPO, TOLLGATE_SERVICE
 
 
 def test_default_fips_config():

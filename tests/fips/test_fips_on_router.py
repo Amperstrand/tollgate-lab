@@ -8,7 +8,7 @@ Usage:
 """
 
 import os
-import time
+
 import pytest
 
 
@@ -51,13 +51,17 @@ class TestFipsService:
 
     def test_fips_service_running(self, fips_router):
         """FIPS service is running."""
-        result = fips_router["run"]("sudo service fips status || service fips status || echo 'not running'")
+        result = fips_router["run"](
+            "sudo service fips status || service fips status || echo 'not running'"
+        )
         assert "running" in result.stdout.lower() or "active" in result.stdout.lower(), \
             f"FIPS not running: {result.stdout}"
 
     def test_fipsctl_responds(self, fips_router):
         """fipsctl responds with transport info."""
-        result = fips_router["run"]("sudo fipsctl show status 2>/dev/null || fipsctl show status 2>/dev/null")
+        result = fips_router["run"](
+            "sudo fipsctl show status 2>/dev/null || fipsctl show status 2>/dev/null"
+        )
         assert result.returncode == 0 or "transport" in result.stdout.lower(), \
             f"fipsctl failed: {result.stderr}"
         assert "transport" in result.stdout.lower() or "node" in result.stdout.lower(), \
@@ -65,7 +69,9 @@ class TestFipsService:
 
     def test_fips_config_exists(self, fips_router):
         """FIPS config file exists."""
-        result = fips_router["run"]("cat /etc/fips/fips.yaml 2>/dev/null || sudo cat /etc/fips/fips.yaml 2>/dev/null")
+        result = fips_router["run"](
+            "cat /etc/fips/fips.yaml 2>/dev/null || sudo cat /etc/fips/fips.yaml 2>/dev/null"
+        )
         assert result.returncode == 0, "No config file"
         assert "transport" in result.stdout.lower(), "Config missing transports"
 
@@ -76,7 +82,9 @@ class TestFipsTollGateCoexistence:
 
     def test_no_port_conflict(self, fips_router):
         """FIPS uses UDP 2121, TollGate uses different ports."""
-        result = fips_router["run"]("sudo ss -ulnp | grep ':2121' || netstat -uln | grep ':2121' || echo NO_2121")
+        result = fips_router["run"](
+            "sudo ss -ulnp | grep ':2121' || netstat -uln | grep ':2121' || echo NO_2121"
+        )
         # Port 2121 should be used by FIPS
         assert "2121" in result.stdout, f"FIPS UDP 2121 not found: {result.stdout}"
 

@@ -6,15 +6,14 @@ shrunk for test speed.
 """
 
 import pytest
+from labgrid import Target
 
 import tollgate_lab.drivers.stock_zyxel_poe as mod
 from tollgate_lab.drivers.stock_zyxel_poe import (
-    StockZyxelPoePort,
-    StockZyxelPoEDriver,
     ExecutionError,
+    StockZyxelPoEDriver,
+    StockZyxelPoePort,
 )
-
-from labgrid import Target
 
 
 class FakeWeb:
@@ -72,8 +71,9 @@ def test_port_normalization():
     assert StockZyxelPoePort(t, name="res", host="h", port="p2").port_no == 2
     assert StockZyxelPoePort(t, name="res", host="h", port="7").port_no == 7
     for bad in ("p9", "p0", "lan2", "", "px"):
+        # port_no access on an invalid port must raise, not return
         with pytest.raises(ExecutionError):
-            StockZyxelPoePort(t, name="res", host="h", port=bad).port_no
+            _ = StockZyxelPoePort(t, name="res", host="h", port=bad).port_no
 
 
 def test_off_verifies_disable(monkeypatch):

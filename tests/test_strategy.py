@@ -1,7 +1,8 @@
 """Tests for OpenWrtStrategy."""
 
 from labgrid import target_factory
-from tollgate_lab.strategy.openwrt import OpenWrtStrategy, OpenWrtState
+
+from tollgate_lab.strategy.openwrt import OpenWrtState
 
 
 def test_strategy_registered():

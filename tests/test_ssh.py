@@ -1,7 +1,8 @@
 """Unit tests for SSH driver (mocked subprocess)."""
 
 import subprocess
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from tollgate_lab.drivers.ssh import _ssh_run
 
 
@@ -20,7 +21,7 @@ def test_ssh_run_timeout(mock_run):
     mock_run.side_effect = subprocess.TimeoutExpired("ssh", 30)
     try:
         _ssh_run("test-host", "sleep 999", timeout=5)
-        assert False, "Should have raised"
+        raise AssertionError("Should have raised")
     except subprocess.TimeoutExpired:
         pass
 
