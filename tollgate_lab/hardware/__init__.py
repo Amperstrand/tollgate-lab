@@ -37,6 +37,18 @@ from tollgate_lab.hardware.lock import (
     release_hardware_lock,
     require_hardware_lock,
 )
+from tollgate_lab.hardware.pcscd_domain import (
+    PcscdDomainHeldError as PcscdDomainHeldError,
+)
+from tollgate_lab.hardware.pcscd_domain import (
+    PcscdDomainLock as PcscdDomainLock,
+)
+from tollgate_lab.hardware.pcscd_domain import (
+    acquire_pcscd_disturbance as acquire_pcscd_disturbance,
+)
+from tollgate_lab.hardware.pcscd_domain import (
+    acquire_pcscd_reader as acquire_pcscd_reader,
+)
 from tollgate_lab.hardware.port import (
     AmbiguousPortError as AmbiguousPortError,
 )

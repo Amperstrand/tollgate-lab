@@ -32,6 +32,7 @@ session record is the human- and agent-readable story of who holds them.
 
 from __future__ import annotations
 
+import contextlib
 import fcntl
 import json
 import os
@@ -153,6 +154,22 @@ def journal_tail(lines: int = 40) -> list[str]:
     if not JOURNAL.exists():
         return []
     return JOURNAL.read_text().splitlines()[-lines:]
+
+
+def bench_event(event: str, detail: str = "") -> None:
+    """Public one-line bench event for non-session actors (locks, helper
+    CLIs like pcscd-ctl). Best-effort: journaling must never gate a lock
+    or a recovery action (same posture as the run ledger)."""
+    with contextlib.suppress(OSError):
+        _journal(
+            event,
+            {
+                "session": f"{os.getenv('USER', '?')}@{platform.node()}",
+                "pid": str(os.getpid()),
+                "project": "-",
+            },
+            detail,
+        )
 
 
 def _flock_held(path: Path) -> bool:
