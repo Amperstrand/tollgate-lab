@@ -28,6 +28,9 @@ dev = [
     "pytest-cov>=5.0",
 ]
 
+[project.scripts]
+pcscd-ctl = "tollgate_lab.pcscd_ctl:main"
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"

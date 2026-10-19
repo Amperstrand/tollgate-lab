@@ -53,6 +53,12 @@ from tollgate_lab.hardware import (
     acquire_bench_lock as acquire_bench_lock,
 )
 from tollgate_lab.hardware import (
+    acquire_pcscd_disturbance as acquire_pcscd_disturbance,
+)
+from tollgate_lab.hardware import (
+    acquire_pcscd_reader as acquire_pcscd_reader,
+)
+from tollgate_lab.hardware import (
     assert_telemetry as assert_telemetry,
 )
 from tollgate_lab.hardware import (
