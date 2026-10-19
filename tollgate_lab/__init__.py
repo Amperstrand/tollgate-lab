@@ -41,6 +41,9 @@ from tollgate_lab.hardware import (
     HardwareLock as HardwareLock,
 )
 from tollgate_lab.hardware import (
+    PcscdDomainHeldError as PcscdDomainHeldError,
+)
+from tollgate_lab.hardware import (
     PortAbsentError as PortAbsentError,
 )
 from tollgate_lab.hardware import (
