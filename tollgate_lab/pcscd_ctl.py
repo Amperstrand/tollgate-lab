@@ -9,7 +9,8 @@ the event. ``status`` answers "is pcscd alive and how many readers" plus
 the last journal lines.
 
 Exit codes: 0 healthy/stable, 2 unstable, 3 lock contention (passed
-through from the domain lock).
+through from the domain lock), 4 restart command failed — pcscd answered
+anyway, so the box looks healthy but OUR restart never happened.
 """
 
 from __future__ import annotations
@@ -126,13 +127,25 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.cmd == "restart":
-        out = restart(
-            project=args.project,
-            reason=args.reason,
-            wait_readers_s=args.wait_readers_s,
-        )
+        from tollgate_lab import PcscdDomainHeldError
+
+        try:
+            out = restart(
+                project=args.project,
+                reason=args.reason,
+                wait_readers_s=args.wait_readers_s,
+            )
+        except PcscdDomainHeldError as e:
+            # documented exit 3 — was an unhandled traceback + exit 1 (#23)
+            print(f"lock-contention: {e}")
+            return 3
         print(f"stable={out['stable']} rc={out['systemctl_rc']} {out['detail']}")
-        return 0 if out["stable"] else 2
+        if not out["stable"]:
+            return 2
+        if out["systemctl_rc"] != 0:
+            # stable-but-denied restart must not masquerade as success (#23)
+            return 4
+        return 0
     st = status()
     print(f"stable={st['stable']} {st['detail']}")
     for line in st["journal"]:
