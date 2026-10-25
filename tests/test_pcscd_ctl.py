@@ -62,3 +62,37 @@ def test_status_shape(monkeypatch):
     st = pcscd_ctl.status()
     assert st["stable"] is True
     assert st["journal"] == ["x journal line"]
+
+
+class TestMainExitCodes:
+    """Issue #23: denied restarts and lock contention must surface in the
+    exit code, not print a stable-looking line and return 0/1."""
+
+    def test_denied_restart_is_exit_4(self, monkeypatch, capsys):
+        events: list[tuple[str, str]] = []
+        _patch(monkeypatch, events, stable=(True, "5 readers listed"), rc=1)
+        rc = pcscd_ctl.main(["restart", "--project", "lane"])
+        assert rc == 4, "stable-but-denied restart must not exit 0"
+        assert "rc=1" in capsys.readouterr().out
+
+    def test_clean_restart_is_exit_0(self, monkeypatch):
+        events: list[tuple[str, str]] = []
+        _patch(monkeypatch, events, rc=0)
+        assert pcscd_ctl.main(["restart", "--project", "lane"]) == 0
+
+    def test_unstable_is_exit_2(self, monkeypatch):
+        events: list[tuple[str, str]] = []
+        _patch(monkeypatch, events, stable=(False, "no answer"), rc=0)
+        assert pcscd_ctl.main(["restart", "--project", "lane"]) == 2
+
+    def test_lock_contention_is_exit_3(self, monkeypatch, capsys):
+        from tollgate_lab import PcscdDomainHeldError
+
+        def boom(**kwargs):
+            raise PcscdDomainHeldError(holder={"project": "other-lane"})
+
+        monkeypatch.setattr(pcscd_ctl, "acquire_pcscd_disturbance", boom)
+        monkeypatch.setattr(pcscd_ctl, "bench_event", lambda e, d="": None)
+        rc = pcscd_ctl.main(["restart", "--project", "lane"])
+        assert rc == 3, "contention must exit 3 (documented), not traceback 1"
+        assert "lock-contention" in capsys.readouterr().out
