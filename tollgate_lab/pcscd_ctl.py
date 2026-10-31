@@ -66,6 +66,43 @@ def systemctl_restart_pcscd() -> int:
     return r.returncode
 
 
+def _labgrid_other_holders(project: str) -> list[str]:
+    """Places currently acquired by OTHER lanes (labgrid-client who).
+
+    #525 (ccid-firmware-rs): pcscd restarts disturb every lane whose
+    readers live on this host. The flock serializes restarts but cannot
+    see dependencies — labgrid place ownership is the bench's real
+    dependency currency, so a restart is denied while any OTHER lane
+    holds a place. Output is the named holder list (empty = clear).
+    Fail-open ONLY if labgrid itself is unreachable (its coordinator
+    being down must not add a second outage on top).
+    """
+    try:
+        r = subprocess.run(
+            ["labgrid-client", "who"],
+            capture_output=True, text=True, timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    if r.returncode != 0:
+        return []
+    others: list[str] = []
+    for line in r.stdout.splitlines():
+        line = line.strip()
+        # skip decoration only — a real holder line may itself start
+        # with "Place" (labgrid-client who table rows); the "acquired"
+        # keyword filter below is the authoritative selector.
+        if not line or line.startswith(("===", "--")):
+            continue
+        # format: "<place>: acquired by <name> ..." variants; take the
+        # whole line — the caller prints it verbatim for the human.
+        if project and project in line:
+            continue
+        if "acquired" in line or "occupied" in line:
+            others.append(line)
+    return others
+
+
 def restart(
     project: str = "",
     reason: str = "",
@@ -74,6 +111,18 @@ def restart(
 ) -> dict[str, object]:
     """Disturbance-locked pcscd restart. Waits out reader sessions (up to
     wait_readers_s), restarts, then waits for PC/SC to answer again."""
+    others = _labgrid_other_holders(project)
+    if others:
+        bench_event(
+            "pcscd-restart-denied",
+            f"project={project or '-'} holders={'; '.join(others)}",
+        )
+        return {
+            "systemctl_rc": -1,
+            "stable": False,
+            "detail": "DENIED: other lanes hold labgrid places: "
+                      + "; ".join(others),
+        }
     lock = acquire_pcscd_disturbance(
         project=project,
         reason=reason,
