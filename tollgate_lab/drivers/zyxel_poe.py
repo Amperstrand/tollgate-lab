@@ -85,7 +85,16 @@ class PoeStatus(enum.Enum):
 #: Status strings meaning "port is off / not powered".
 OFF_STATES = frozenset(
     member.value.lower()
-    for member in (PoeStatus.DISABLED, PoeStatus.OFF, PoeStatus.EMPTY, PoeStatus.FAULT)
+    for member in (
+        PoeStatus.DISABLED,
+        PoeStatus.OFF,
+        PoeStatus.EMPTY,
+        PoeStatus.FAULT,
+        # "Other fault" is a faulted port, not a delivering one: without it
+        # an enable request verified against a faulted row reported success
+        # (review debt tollgate-lab#24).
+        PoeStatus.OTHER_FAULT,
+    )
 )
 #: Status strings that are neither on nor off yet — never accepted as a
 #: verification match.

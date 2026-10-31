@@ -70,6 +70,10 @@ POE_TOGGLE_FIELDS = {
     "poeTimeRange": "",
 }
 
+#: Bounded so tests (and the driver's own wedge logic) never wait the full
+#: window on a state that will never arrive.
+POE_VERIFY_TIMEOUT_S = 30
+
 
 def zyxel_encode(pw: str) -> str:
     """Replicate the login page's JS encode(): 321 chars, password reversed
@@ -156,11 +160,19 @@ class StockWeb:
     def _evicted(self, body: str) -> bool:
         return not self._in_login and any(m in body for m in self._LOGIN_PAGE_MARKERS)
 
-    def _fetch(self, request: urllib.request.Request) -> str:
+    def _fetch(self, request: urllib.request.Request, rebuild=None) -> str:
         body = self.opener.open(request, timeout=8).read().decode("latin-1", "replace")
         if self._evicted(body):
             self._login(self._password)
-            body = self.opener.open(request, timeout=8).read().decode("latin-1", "replace")
+            # A fresh session means a fresh XSSID: retrying the original
+            # Request resubmits the stale token and the write silently
+            # fails (review debt tollgate-lab#19). Callers that POST must
+            # pass a rebuild closure; pure GETs have nothing stale.
+            body = (
+                self.opener.open(rebuild() if rebuild else request, timeout=8)
+                .read()
+                .decode("latin-1", "replace")
+            )
             if self._evicted(body):
                 raise RuntimeError(
                     "session evicted twice in a row — another client is "
@@ -172,13 +184,15 @@ class StockWeb:
         return self._fetch(urllib.request.Request(f"{self.base}?cmd={cmd}"))
 
     def post_cmd(self, cmd: int, fields: dict[str, str]) -> str:
-        data = "&".join(f"{k}={v}" for k, v in fields.items())
-        req = urllib.request.Request(
-            self.base,
-            data=f"XSSID={self.xssid}&{data}&cmd={cmd}&sysSubmit=Apply".encode(),
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-        )
-        return self._fetch(req)
+        def build() -> urllib.request.Request:
+            data = "&".join(f"{k}={v}" for k, v in fields.items())
+            return urllib.request.Request(
+                self.base,
+                data=f"XSSID={self.xssid}&{data}&cmd={cmd}&sysSubmit=Apply".encode(),
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+        return self._fetch(build(), rebuild=build)
 
     # -- PoE ----------------------------------------------------------------
 
@@ -232,12 +246,19 @@ class StockWeb:
         }
         fields.update({k: v for k, v in POE_TOGGLE_FIELDS.items() if k not in fields})
         self.post_cmd(775, fields)
-        deadline = time.monotonic() + 30
-        want_mw = int(enabled)
+        deadline = time.monotonic() + POE_VERIFY_TIMEOUT_S
         while time.monotonic() < deadline:
             row = self.poe_status().get(port, {})
-            delivering = row.get("mw", 0) > 0
-            if delivering == want_mw or (not enabled and row.get("state") == "Disable"):
+            if enabled:
+                # Enable keeps watts-return semantics: cmd=773 is the truth
+                # source and a PD draws within the window.
+                if row.get("mw", 0) > 0:
+                    return row
+            # Disable requires the ADMIN-STATE transition, not just 0 mW:
+            # a dropped cmd=775 leaves the row Enable at 0 mW, which the
+            # old `delivering == want_mw` disjunct reported as success
+            # (review debt tollgate-lab#20).
+            elif row.get("state") == "Disable":
                 return row
             time.sleep(1.5)
         raise RuntimeError(f"poe toggle port {port} unverified: {row}")
@@ -391,6 +412,12 @@ def complete_password_gate(host: str, old: str, new: str) -> bool:
     w = StockWeb.__new__(StockWeb)
     w.base = f"http://{host}/cgi-bin/dispatcher.cgi"
     w.user, w.host = "admin", host
+    # _fetch/_evicted need these two even though __new__ skips __init__
+    # (review debt tollgate-lab#17: w.get(30) hit `not self._in_login`
+    # AttributeError before the gate form was ever fetched; _password is
+    # what the eviction retry path re-logins with).
+    w._in_login = False
+    w._password = old
     w.jar = http.cookiejar.CookieJar()
     w.opener = _u.build_opener(_u.HTTPCookieProcessor(w.jar))
 

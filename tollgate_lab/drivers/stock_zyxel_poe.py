@@ -78,29 +78,56 @@ def _make_web(host: str, password: str, user: str):
         return StockWeb(host, password, user)
 
 
+def _reject_ciphertext(pw: str, source: str) -> None:
+    """AGENTS.md "Secrets: sops only" sanity gate: a "password" >40 chars
+    or starting ENC[ is sops ciphertext. Authenticating with it produces
+    auth failures that impersonate box faults (the 90-min wedge
+    misdiagnosis). Decrypt first: sops -d --extract."""
+    if pw.startswith("ENC[") or len(pw) > 40:
+        raise ExecutionError(
+            f"{source} password looks like sops ciphertext "
+            f"({len(pw)} chars, ENC-prefixed: {pw.startswith('ENC[')}) — "
+            "decrypt it first: sops -d --extract "
+            '\'["fleet"]["bench_root_password"]\' '
+            f"{_BENCH_SECRETS} (AGENTS.md secrets rule)"
+        )
+
+
 def _resolve_password() -> str:
     """STOCK_ZYXEL_PASSWORD > BENCH_ROOT_PW > sops fleet.bench_root_password.
 
     The password is never logged, never embedded in exceptions raised onward.
     """
-    if os.environ.get("STOCK_ZYXEL_PASSWORD"):
-        return os.environ["STOCK_ZYXEL_PASSWORD"]
-    if os.environ.get("BENCH_ROOT_PW"):
-        return os.environ["BENCH_ROOT_PW"]
+    override = os.environ.get("STOCK_ZYXEL_PASSWORD")
+    source = "STOCK_ZYXEL_PASSWORD"
+    if not override:
+        override = os.environ.get("BENCH_ROOT_PW")
+        source = "BENCH_ROOT_PW"
+    if override:
+        _reject_ciphertext(override, f"env override {source}")
+        return override
     import json
     import subprocess
 
     env = os.environ.copy()
     env.setdefault("SOPS_AGE_KEY_FILE", os.path.expanduser("~/.config/age/keys.txt"))
+    # --extract materializes ONLY the one field — a bare `sops -d` put every
+    # decrypted secret in the subprocess stdout (review debt tollgate-lab#22,
+    # AGENTS.md "Always sops -d --extract").
     out = subprocess.run(
-        ["sops", "-d", _BENCH_SECRETS],
+        ["sops", "-d", "--extract", '["fleet"]["bench_root_password"]', _BENCH_SECRETS],
         capture_output=True,
         text=True,
         timeout=20,
         env=env,
         check=True,
-    ).stdout
-    return json.loads(out)["fleet"]["bench_root_password"]
+    ).stdout.strip()
+    try:
+        value = json.loads(out)
+    except json.JSONDecodeError:
+        value = out
+    _reject_ciphertext(value, "sops fleet.bench_root_password")
+    return value
 
 
 @contextmanager
@@ -152,6 +179,13 @@ class StockZyxelPoePort(Resource):
         if not m or not 1 <= int(m.group(1)) <= 8:
             raise ExecutionError(f"invalid stock port {self.port!r} (want p1..p8)")
         return int(m.group(1))
+
+    @property
+    def is_protected(self) -> bool:
+        """Normalize before comparing: the resource accepts both "p1" and
+        "1", and the raw-spelling check let port: "1" toggle the protected
+        uplink (review debt tollgate-lab#18)."""
+        return f"p{self.port_no}" in PROTECTED_PORTS
 
 
 @target_factory.reg_driver
@@ -261,7 +295,7 @@ class StockZyxelPoEDriver(Driver, PowerResetMixin, PowerProtocol):
 
     def _set(self, enable: bool) -> None:
         no = self.port.port_no
-        if self.port.port.strip().lower() in PROTECTED_PORTS:
+        if self.port.is_protected:
             raise ExecutionError(
                 f"refusing to toggle protected port {self.port.port!r} "
                 f"(protected: {sorted(PROTECTED_PORTS)})"
