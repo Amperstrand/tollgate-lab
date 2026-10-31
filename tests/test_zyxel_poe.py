@@ -238,6 +238,20 @@ def test_get_false_when_disabled(switch, clock):
     assert make_driver().get() is False
 
 
+def test_on_raises_when_port_reports_other_fault(switch, clock):
+    """#24: 'Other fault' was absent from OFF_STATES — an enable request on
+    a faulted port verified as success while the port delivers nothing."""
+    switch.state = {"status": "Other fault"}
+    switch.drop_attempts = 10**9  # manage silently dropped; fault persists
+    with pytest.raises(ExecutionError):
+        make_driver().on()
+
+
+def test_get_false_when_other_fault(switch, clock):
+    switch.state = {"status": "Other fault"}
+    assert make_driver().get() is False
+
+
 def test_get_status_returns_raw_string(switch, clock):
     switch.state = {"status": "Other fault"}
     assert make_driver().get_status() == "Other fault"
@@ -306,7 +320,7 @@ def test_poe_status_parse_unrecognized_is_none(raw):
 
 
 def test_verification_sets_derived_from_enum():
-    assert set(zyxel_poe.OFF_STATES) == {"disabled", "off", "", "fault"}
+    assert set(zyxel_poe.OFF_STATES) == {"disabled", "off", "", "fault", "other fault"}
     assert set(zyxel_poe.TRANSIENT_STATES) == {"initializing", "unknown"}
 
 

@@ -82,10 +82,18 @@ class PoeStatus(enum.Enum):
         return None
 
 
-#: Status strings meaning "port is off / not powered".
+#: Status strings meaning "port is off / not powered". OTHER_FAULT is
+#: off-class too: an enable landing in "Other fault" delivered nothing —
+#: reporting that as power-on success hides the fault (#24).
 OFF_STATES = frozenset(
     member.value.lower()
-    for member in (PoeStatus.DISABLED, PoeStatus.OFF, PoeStatus.EMPTY, PoeStatus.FAULT)
+    for member in (
+        PoeStatus.DISABLED,
+        PoeStatus.OFF,
+        PoeStatus.EMPTY,
+        PoeStatus.FAULT,
+        PoeStatus.OTHER_FAULT,
+    )
 )
 #: Status strings that are neither on nor off yet — never accepted as a
 #: verification match.
