@@ -103,20 +103,27 @@ def _resolve_password() -> str:
         return _gate_password(os.environ["STOCK_ZYXEL_PASSWORD"], "STOCK_ZYXEL_PASSWORD")
     if os.environ.get("BENCH_ROOT_PW"):
         return _gate_password(os.environ["BENCH_ROOT_PW"], "BENCH_ROOT_PW")
-    import json
     import subprocess
 
     env = os.environ.copy()
     env.setdefault("SOPS_AGE_KEY_FILE", os.path.expanduser("~/.config/age/keys.txt"))
     out = subprocess.run(
-        ["sops", "-d", _BENCH_SECRETS],
+        # Scoped extraction: a bare `sops -d <file>` would materialize
+        # EVERY bench secret in this process's output (#22).
+        [
+            "sops",
+            "-d",
+            "--extract",
+            '["fleet"]["bench_root_password"]',
+            _BENCH_SECRETS,
+        ],
         capture_output=True,
         text=True,
         timeout=20,
         env=env,
         check=True,
     ).stdout
-    return json.loads(out)["fleet"]["bench_root_password"]
+    return _gate_password(out.strip(), f"sops extract of {_BENCH_SECRETS}")
 
 
 @contextmanager

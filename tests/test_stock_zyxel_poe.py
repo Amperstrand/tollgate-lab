@@ -215,3 +215,44 @@ class TestPasswordCiphertextGate:
         monkeypatch.delenv("STOCK_ZYXEL_PASSWORD")
         monkeypatch.setenv("BENCH_ROOT_PW", "also-normal")
         assert mod._resolve_password() == "also-normal"
+
+
+class TestSopsScopedDecrypt:
+    """#22: only the needed key may be materialized — `sops -d <file>`
+    decrypts the ENTIRE bench secrets file into process output."""
+
+    @staticmethod
+    def _no_overrides(monkeypatch):
+        monkeypatch.delenv("STOCK_ZYXEL_PASSWORD", raising=False)
+        monkeypatch.delenv("BENCH_ROOT_PW", raising=False)
+
+    def test_extract_flag_scopes_decryption(self, monkeypatch):
+        import subprocess as sp
+
+        self._no_overrides(monkeypatch)
+        argvs = []
+
+        def fake_run(argv, **kw):
+            argvs.append(argv)
+            return sp.CompletedProcess(args=argv, returncode=0, stdout=" scoped-pw \n")
+
+        monkeypatch.setattr(sp, "run", fake_run)
+        assert mod._resolve_password() == "scoped-pw"
+        argv = argvs[0]
+        assert argv[:3] == ["sops", "-d", "--extract"]
+        assert '["fleet"]["bench_root_password"]' in argv
+        assert argv[-1] == mod._BENCH_SECRETS
+
+    def test_ciphertext_from_sops_output_blocked(self, monkeypatch):
+        import subprocess as sp
+
+        self._no_overrides(monkeypatch)
+
+        def fake_run(argv, **kw):
+            return sp.CompletedProcess(
+                args=argv, returncode=0, stdout="ENC[AES256_GCM,data:x,type:str]"
+            )
+
+        monkeypatch.setattr(sp, "run", fake_run)
+        with pytest.raises(RuntimeError, match="ciphertext"):
+            mod._resolve_password()
