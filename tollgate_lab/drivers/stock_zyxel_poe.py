@@ -78,15 +78,31 @@ def _make_web(host: str, password: str, user: str):
         return StockWeb(host, password, user)
 
 
+def _gate_password(value: str, source: str) -> str:
+    """Reject sops ciphertext before it can reach an auth attempt.
+
+    AGENTS.md secrets policy: a "password" starting with ENC[ or longer
+    than 40 chars is an undecrypted blob (2026-09-25 incident: authing
+    with ciphertext impersonates box faults)."""
+    if value.startswith("ENC[") or len(value) > 40:
+        raise RuntimeError(
+            f"{source} looks like sops ciphertext (starts with 'ENC[' or "
+            "exceeds 40 chars) — refusing to authenticate with it. Decrypt "
+            'first, e.g. sops -d --extract \'["fleet"]["bench_root_password"]\' '
+            "on the bench secrets file."
+        )
+    return value
+
+
 def _resolve_password() -> str:
     """STOCK_ZYXEL_PASSWORD > BENCH_ROOT_PW > sops fleet.bench_root_password.
 
     The password is never logged, never embedded in exceptions raised onward.
     """
     if os.environ.get("STOCK_ZYXEL_PASSWORD"):
-        return os.environ["STOCK_ZYXEL_PASSWORD"]
+        return _gate_password(os.environ["STOCK_ZYXEL_PASSWORD"], "STOCK_ZYXEL_PASSWORD")
     if os.environ.get("BENCH_ROOT_PW"):
-        return os.environ["BENCH_ROOT_PW"]
+        return _gate_password(os.environ["BENCH_ROOT_PW"], "BENCH_ROOT_PW")
     import json
     import subprocess
 

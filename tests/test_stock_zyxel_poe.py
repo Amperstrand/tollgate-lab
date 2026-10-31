@@ -178,3 +178,40 @@ def test_get_status_and_get(monkeypatch):
     d = _make_target_with(web, monkeypatch)
     assert d.get() is True
     assert "Enable" in d.get_status() and "5200" in d.get_status()
+
+
+class TestPasswordCiphertextGate:
+    """#21: ciphertext-shaped overrides must fail loudly with the sops -d
+    remedy — authenticating with an ENC[...] blob produces auth failures
+    that impersonate box faults (2026-09-25 incident)."""
+
+    @staticmethod
+    def _clean_env(monkeypatch):
+        monkeypatch.delenv("STOCK_ZYXEL_PASSWORD", raising=False)
+        monkeypatch.delenv("BENCH_ROOT_PW", raising=False)
+
+    def test_stock_env_rejects_enc_blob(self, monkeypatch):
+        self._clean_env(monkeypatch)
+        monkeypatch.setenv("STOCK_ZYXEL_PASSWORD", "ENC[AES256_GCM,data:xyz,type:str]")
+        with pytest.raises(RuntimeError, match="ciphertext"):
+            mod._resolve_password()
+
+    def test_bench_root_pw_rejects_enc_blob(self, monkeypatch):
+        self._clean_env(monkeypatch)
+        monkeypatch.setenv("BENCH_ROOT_PW", "ENC[AES256_GCM,data:xyz,type:str]")
+        with pytest.raises(RuntimeError, match="ciphertext"):
+            mod._resolve_password()
+
+    def test_overlong_value_rejected(self, monkeypatch):
+        self._clean_env(monkeypatch)
+        monkeypatch.setenv("STOCK_ZYXEL_PASSWORD", "x" * 41)
+        with pytest.raises(RuntimeError, match="ciphertext"):
+            mod._resolve_password()
+
+    def test_plaintext_overrides_pass_through(self, monkeypatch):
+        self._clean_env(monkeypatch)
+        monkeypatch.setenv("STOCK_ZYXEL_PASSWORD", "normal")
+        assert mod._resolve_password() == "normal"
+        monkeypatch.delenv("STOCK_ZYXEL_PASSWORD")
+        monkeypatch.setenv("BENCH_ROOT_PW", "also-normal")
+        assert mod._resolve_password() == "also-normal"
