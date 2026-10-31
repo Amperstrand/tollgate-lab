@@ -261,7 +261,9 @@ class StockZyxelPoEDriver(Driver, PowerResetMixin, PowerProtocol):
 
     def _set(self, enable: bool) -> None:
         no = self.port.port_no
-        if self.port.port.strip().lower() in PROTECTED_PORTS:
+        # Compare the NORMALIZED spelling — the resource accepts "p1" and
+        # "1" alike, so a raw compare let port "1" bypass the guard (#18).
+        if f"p{no}" in PROTECTED_PORTS:
             raise ExecutionError(
                 f"refusing to toggle protected port {self.port.port!r} "
                 f"(protected: {sorted(PROTECTED_PORTS)})"

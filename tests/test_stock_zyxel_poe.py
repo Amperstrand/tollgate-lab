@@ -136,6 +136,17 @@ def test_protected_port_refused(monkeypatch):
     assert web.calls == []
 
 
+@pytest.mark.parametrize("port", ["1", "P1"])
+def test_protected_port_alternate_spellings_refused(monkeypatch, port):
+    """#18: the guard must compare the NORMALIZED port — the raw spelling
+    '1' bypassed the p1 uplink protection."""
+    web = FakeWeb(dict(ROWS_ON))
+    d = _make_target_with(web, monkeypatch, port=port)
+    with pytest.raises(ExecutionError, match="protected"):
+        d.off()
+    assert web.calls == []
+
+
 def test_empty_port_enable_noop(monkeypatch):
     rows = {3: {"state": "Enable", "class": "class0", "priority": "Low",
                 "powerup": "802.3at", "mw": 0}}
