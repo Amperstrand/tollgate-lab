@@ -306,7 +306,9 @@ def test_poe_status_parse_unrecognized_is_none(raw):
 
 
 def test_verification_sets_derived_from_enum():
-    assert set(zyxel_poe.OFF_STATES) == {"disabled", "off", "", "fault"}
+    # OTHER_FAULT joined OFF_STATES per review debt #24: a faulted row must
+    # not verify as a successful enable.
+    assert set(zyxel_poe.OFF_STATES) == {"disabled", "off", "", "fault", "other fault"}
     assert set(zyxel_poe.TRANSIENT_STATES) == {"initializing", "unknown"}
 
 
