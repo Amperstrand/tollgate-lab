@@ -98,7 +98,9 @@ def _labgrid_other_holders(project: str) -> list[str]:
     try:
         r = subprocess.run(
             ["labgrid-client", "who"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
     except (OSError, subprocess.TimeoutExpired):
         return []
@@ -137,8 +139,7 @@ def restart(
         return {
             "systemctl_rc": -1,
             "stable": False,
-            "detail": "DENIED: other lanes hold labgrid places: "
-                      + "; ".join(others),
+            "detail": "DENIED: other lanes hold labgrid places: " + "; ".join(others),
         }
     lock = acquire_pcscd_disturbance(
         project=project,
@@ -159,7 +160,7 @@ def restart(
                 "systemctl_rc": -1,
                 "stable": False,
                 "detail": "DENIED under lock: other lanes hold labgrid "
-                          "places: " + "; ".join(late_others),
+                "places: " + "; ".join(late_others),
             }
         bench_event("pcscd-restart", f"project={project or '-'} reason={reason or '-'}")
         rc = systemctl_restart_pcscd()
