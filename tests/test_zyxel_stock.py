@@ -1,3 +1,22 @@
+import urllib.request
+
+
+class _Resp:
+    def __init__(self, text):
+        self._text = text
+
+    def read(self):
+        return self._text.encode()
+
+
+class _Opener:
+    """Routes urllib traffic through a scripted handler object."""
+
+    def __init__(self, router):
+        self.router = router
+
+    def open(self, req, timeout=None):
+        return _Resp(self.router.open(req, timeout=timeout))
 
 
 class TestRecoveryTooling:
@@ -30,6 +49,7 @@ class TestRecoveryTooling:
 
     def test_save_config_posts_exact_radio_pair(self, monkeypatch):
         import tollgate_lab.hardware.zyxel_stock as zs
+
         web = zs.StockWeb.__new__(zs.StockWeb)
         web.base = "http://x/cgi-bin/dispatcher.cgi"
         posts = []
@@ -53,6 +73,7 @@ class TestRecoveryTooling:
 
     def test_set_static_ip_uses_mode_zero(self, monkeypatch):
         import tollgate_lab.hardware.zyxel_stock as zs
+
         web = zs.StockWeb.__new__(zs.StockWeb)
         web.base = "http://x/cgi-bin/dispatcher.cgi"
         posts = []
@@ -72,3 +93,36 @@ class TestRecoveryTooling:
         body = posts[0]
         assert "mode=0" in body  # static — mode is inverted from intuition
         assert "ip=192.168.13.3" in body and "cmd=517" in body
+
+
+class TestPasswordGate:
+    """#17: the __new__-built gate session must carry the attrs _fetch()
+    requires (_in_login, _password) — w.get(30) crashed with AttributeError
+    before any gate form was processed."""
+
+    def test_complete_password_gate_fetches_gate_page(self, monkeypatch):
+        import tollgate_lab.hardware.zyxel_stock as zs
+
+        seen = {"gate_post": False}
+
+        class Router:
+            def open(self, req, timeout=None):
+                data = req.data.decode() if req.data else ""
+                url = getattr(req, "full_url", "")
+                if "login=true" in data:
+                    return "A1B2C3"  # authId nonce (must be fullmatch hex)
+                if "login_chk" in data:
+                    return "OK"
+                if "cmd=31" in data:
+                    seen["gate_post"] = True
+                    return "applied"
+                if url.endswith("cmd=30"):
+                    return '<input name="XSSID" value="6A7E77">'
+                if url.endswith("cmd=1"):
+                    return '<input name="XSSID" value="B0C41">'
+                raise AssertionError(f"unexpected request {url!r} {data!r}")
+
+        router = Router()
+        monkeypatch.setattr(urllib.request, "build_opener", lambda *a, **k: _Opener(router))
+        assert zs.complete_password_gate("h", "old", "new") is True
+        assert seen["gate_post"] is True

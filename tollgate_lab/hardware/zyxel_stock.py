@@ -393,6 +393,10 @@ def complete_password_gate(host: str, old: str, new: str) -> bool:
     w.user, w.host = "admin", host
     w.jar = http.cookiejar.CookieJar()
     w.opener = _u.build_opener(_u.HTTPCookieProcessor(w.jar))
+    # _fetch()/_evicted() contract: _in_login missing -> AttributeError on
+    # get(30) (#17); _password missing -> eviction mid-fetch cannot re-login.
+    w._in_login = False
+    w._password = old
 
     def post(data: str) -> str:
         req = _u.Request(
