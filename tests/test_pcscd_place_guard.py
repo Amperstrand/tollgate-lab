@@ -4,8 +4,10 @@ Parser tests use the REAL `labgrid-client who` table format (live-verified
 2026-10-31; the first draft parsed a sentence format that does not exist —
 Codex P1 on tollgate-lab#26).
 """
+
 import sys
 from unittest import mock
+
 sys.path.insert(0, ".")
 from tollgate_lab import pcscd_ctl
 
@@ -39,8 +41,7 @@ def test_real_table_other_holders_reported():
 
 def test_own_project_place_ignored():
     who = (
-        "User    Host      Place       Changed\n"
-        "root    ai-legion ccid-bench  2026-10-31 11:45:52\n"
+        "User    Host      Place       Changed\nroot    ai-legion ccid-bench  2026-10-31 11:45:52\n"
     )
     with mock.patch.object(pcscd_ctl.subprocess, "run", return_value=_who(who)):
         assert pcscd_ctl._labgrid_other_holders("ccid-firmware-rs") == []
@@ -48,7 +49,8 @@ def test_own_project_place_ignored():
 
 def test_labgrid_down_fails_open():
     with mock.patch.object(
-        pcscd_ctl.subprocess, "run",
+        pcscd_ctl.subprocess,
+        "run",
         side_effect=OSError("coordinator down"),
     ):
         assert pcscd_ctl._labgrid_other_holders("mine") == []

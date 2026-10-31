@@ -26,6 +26,11 @@ def _patch(monkeypatch, events, stable=(True, "5 readers listed"), rc=0):
     )
     monkeypatch.setattr(pcscd_ctl, "systemctl_restart_pcscd", lambda: rc)
     monkeypatch.setattr(pcscd_ctl, "pcscd_stable", lambda: stable)
+    # Isolate from the LIVE labgrid coordinator: without this stub the tests
+    # fail on any host whose coordinator has real place holders (the DENIED
+    # path is correct product behavior — the tests must not depend on fleet
+    # state). CI runners are clean, so this only bites lab hosts.
+    monkeypatch.setattr(pcscd_ctl, "_labgrid_other_holders", lambda project: [])
 
 
 def test_restart_sequences_lock_journal_wait_release(monkeypatch):
@@ -93,6 +98,7 @@ class TestMainExitCodes:
 
         monkeypatch.setattr(pcscd_ctl, "acquire_pcscd_disturbance", boom)
         monkeypatch.setattr(pcscd_ctl, "bench_event", lambda e, d="": None)
+        monkeypatch.setattr(pcscd_ctl, "_labgrid_other_holders", lambda project: [])
         rc = pcscd_ctl.main(["restart", "--project", "lane"])
         assert rc == 3, "contention must exit 3 (documented), not traceback 1"
         assert "lock-contention" in capsys.readouterr().out
