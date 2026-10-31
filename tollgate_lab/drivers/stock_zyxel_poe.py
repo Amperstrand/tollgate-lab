@@ -78,29 +78,50 @@ def _make_web(host: str, password: str, user: str):
         return StockWeb(host, password, user)
 
 
+def _reject_ciphertext(source: str, value: str) -> str:
+    """AGENTS.md secrets mandate (2026-09-25 incident): a "password" starting
+    with ``ENC[`` or longer than 40 chars is sops ciphertext. Authenticating
+    with it produces auth failures that impersonate box faults (a healthy
+    switch was diagnosed as "wedged" for 90 min this way) — reject loudly
+    instead."""
+    if value.startswith("ENC[") or len(value) > 40:
+        raise ExecutionError(
+            f"{source} looks like sops ciphertext (ENC[ prefix or >40 chars) — "
+            "set the DECRYPTED secret, e.g. `sops -d --extract "
+            '\'["fleet"]["bench_root_password"]\' <bench secrets file>` '
+            "(AGENTS.md: secrets sanity-gate)"
+        )
+    return value
+
+
 def _resolve_password() -> str:
     """STOCK_ZYXEL_PASSWORD > BENCH_ROOT_PW > sops fleet.bench_root_password.
 
     The password is never logged, never embedded in exceptions raised onward.
     """
     if os.environ.get("STOCK_ZYXEL_PASSWORD"):
-        return os.environ["STOCK_ZYXEL_PASSWORD"]
+        return _reject_ciphertext("STOCK_ZYXEL_PASSWORD", os.environ["STOCK_ZYXEL_PASSWORD"])
     if os.environ.get("BENCH_ROOT_PW"):
-        return os.environ["BENCH_ROOT_PW"]
-    import json
+        return _reject_ciphertext("BENCH_ROOT_PW", os.environ["BENCH_ROOT_PW"])
     import subprocess
 
     env = os.environ.copy()
     env.setdefault("SOPS_AGE_KEY_FILE", os.path.expanduser("~/.config/age/keys.txt"))
     out = subprocess.run(
-        ["sops", "-d", _BENCH_SECRETS],
+        [
+            "sops",
+            "-d",
+            "--extract",
+            '["fleet"]["bench_root_password"]',
+            _BENCH_SECRETS,
+        ],
         capture_output=True,
         text=True,
         timeout=20,
         env=env,
         check=True,
     ).stdout
-    return json.loads(out)["fleet"]["bench_root_password"]
+    return out.strip()
 
 
 @contextmanager
@@ -261,7 +282,9 @@ class StockZyxelPoEDriver(Driver, PowerResetMixin, PowerProtocol):
 
     def _set(self, enable: bool) -> None:
         no = self.port.port_no
-        if self.port.port.strip().lower() in PROTECTED_PORTS:
+        # Normalized comparison (issue #18): the resource accepts both "p1"
+        # and "1" spellings — the raw-spelling guard let port "1" bypass.
+        if f"p{no}" in PROTECTED_PORTS:
             raise ExecutionError(
                 f"refusing to toggle protected port {self.port.port!r} "
                 f"(protected: {sorted(PROTECTED_PORTS)})"

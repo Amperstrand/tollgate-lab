@@ -306,7 +306,7 @@ def test_poe_status_parse_unrecognized_is_none(raw):
 
 
 def test_verification_sets_derived_from_enum():
-    assert set(zyxel_poe.OFF_STATES) == {"disabled", "off", "", "fault"}
+    assert set(zyxel_poe.OFF_STATES) == {"disabled", "off", "", "fault", "other fault"}
     assert set(zyxel_poe.TRANSIENT_STATES) == {"initializing", "unknown"}
 
 
@@ -375,3 +375,25 @@ def test_off_skips_budget_guard(monkeypatch):
     monkeypatch.setattr(zyxel_poe.subprocess, "run", run)
     make_driver().off()
     assert calls[0].startswith("ubus call poe manage")
+
+
+# -- review-debt wave 2026-10-31 (#24) ---------------------------------------
+
+
+OTHER_FAULT = {"status": "Other fault"}
+
+
+def test_other_fault_is_off_class():
+    """#24: "Other fault" must be off-class so a faulted port can never
+    verify as powered-on."""
+    assert "other fault" in zyxel_poe.OFF_STATES
+
+
+def test_on_does_not_verify_while_other_fault(switch, clock):
+    """#24 regression: enable request + Other-fault readback must time out
+    as UNVERIFIED, not report success."""
+    switch.state = dict(OTHER_FAULT)
+    switch.apply_after = 10**9  # manage never takes effect on the readback
+    d = make_driver()
+    with pytest.raises(ExecutionError, match="UNVERIFIED|FROZEN|DROPPED"):
+        d.on()

@@ -167,3 +167,75 @@ def test_get_status_and_get(monkeypatch):
     d = _make_target_with(web, monkeypatch)
     assert d.get() is True
     assert "Enable" in d.get_status() and "5200" in d.get_status()
+
+
+# -- review-debt wave 2026-10-31 (#18, #21, #22) -----------------------------
+
+
+def test_protected_port_refused_numeric_spelling(monkeypatch):
+    """#18: port "1" must hit the same p1 protection as "p1"."""
+    web = FakeWeb(dict(ROWS_ON))
+    d = _make_target_with(web, monkeypatch, port="1")
+    with pytest.raises(ExecutionError, match="protected"):
+        d.off()
+    assert web.calls == []
+
+
+class TestPasswordCiphertextGate:
+    """#21: ENC[-shaped or >40-char overrides must fail loudly, not auth."""
+
+    def test_enc_prefixed_env_rejected(self, monkeypatch):
+        monkeypatch.setenv("STOCK_ZYXEL_PASSWORD", "ENC[AES256_GCM,data:xxxx]")
+        monkeypatch.delenv("BENCH_ROOT_PW", raising=False)
+        with pytest.raises(ExecutionError, match="ciphertext"):
+            mod._resolve_password()
+
+    def test_oversized_env_rejected(self, monkeypatch):
+        monkeypatch.setenv("STOCK_ZYXEL_PASSWORD", "a" * 41)
+        with pytest.raises(ExecutionError, match="ciphertext"):
+            mod._resolve_password()
+
+    def test_bench_root_pw_gate_too(self, monkeypatch):
+        monkeypatch.delenv("STOCK_ZYXEL_PASSWORD", raising=False)
+        monkeypatch.setenv("BENCH_ROOT_PW", "ENC[AES256_GCM,data:yyyy]")
+        with pytest.raises(ExecutionError, match="ciphertext"):
+            mod._resolve_password()
+
+    def test_plaintext_override_passes(self, monkeypatch):
+        monkeypatch.setenv("STOCK_ZYXEL_PASSWORD", "normal-pw")
+        assert mod._resolve_password() == "normal-pw"
+
+
+class TestSopsExtractSingleField:
+    """#22: sops must --extract one field, never decrypt the whole file."""
+
+    def _run(self, monkeypatch, env):
+        recorded = {}
+
+        class FakeCompleted:
+            stdout = "decrypted-pw\n"
+
+        def fake_run(argv, **kwargs):
+            recorded["argv"] = argv
+            recorded["env"] = kwargs.get("env")
+            return FakeCompleted()
+
+        import subprocess as sp
+
+        monkeypatch.setattr(sp, "run", fake_run)
+        monkeypatch.setattr(mod.os, "environ", env, raising=False)
+        monkeypatch.setattr(mod, "_BENCH_SECRETS", "/bench/secrets.json")
+        value = mod._resolve_password()
+        return value, recorded["argv"]
+
+    def test_extract_flag_and_value(self, monkeypatch):
+        import os
+
+        env = dict(os.environ)
+        env.pop("STOCK_ZYXEL_PASSWORD", None)
+        env.pop("BENCH_ROOT_PW", None)
+        value, argv = self._run(monkeypatch, env)
+        assert value == "decrypted-pw"
+        assert "--extract" in argv
+        assert '["fleet"]["bench_root_password"]' in argv
+        assert "/bench/secrets.json" in argv

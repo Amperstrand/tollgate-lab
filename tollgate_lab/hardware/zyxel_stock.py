@@ -156,10 +156,19 @@ class StockWeb:
     def _evicted(self, body: str) -> bool:
         return not self._in_login and any(m in body for m in self._LOGIN_PAGE_MARKERS)
 
-    def _fetch(self, request: urllib.request.Request) -> str:
+    def _fetch(self, request: urllib.request.Request, rebuild=None) -> str:
+        """Open ``request``; on eviction re-login and retry once.
+
+        ``rebuild`` (issue #19): POST bodies serialize the XSSID *before* the
+        call — after a re-login the original body carries a stale token and
+        the retry cannot apply. Callers with a body pass a closure that
+        regenerates the Request against the refreshed ``self.xssid``.
+        """
         body = self.opener.open(request, timeout=8).read().decode("latin-1", "replace")
         if self._evicted(body):
             self._login(self._password)
+            if rebuild is not None:
+                request = rebuild()
             body = self.opener.open(request, timeout=8).read().decode("latin-1", "replace")
             if self._evicted(body):
                 raise RuntimeError(
@@ -172,13 +181,15 @@ class StockWeb:
         return self._fetch(urllib.request.Request(f"{self.base}?cmd={cmd}"))
 
     def post_cmd(self, cmd: int, fields: dict[str, str]) -> str:
-        data = "&".join(f"{k}={v}" for k, v in fields.items())
-        req = urllib.request.Request(
-            self.base,
-            data=f"XSSID={self.xssid}&{data}&cmd={cmd}&sysSubmit=Apply".encode(),
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-        )
-        return self._fetch(req)
+        def build() -> urllib.request.Request:
+            data = "&".join(f"{k}={v}" for k, v in fields.items())
+            return urllib.request.Request(
+                self.base,
+                data=f"XSSID={self.xssid}&{data}&cmd={cmd}&sysSubmit=Apply".encode(),
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+        return self._fetch(build(), rebuild=build)
 
     # -- PoE ----------------------------------------------------------------
 
@@ -233,12 +244,18 @@ class StockWeb:
         fields.update({k: v for k, v in POE_TOGGLE_FIELDS.items() if k not in fields})
         self.post_cmd(775, fields)
         deadline = time.monotonic() + 30
-        want_mw = int(enabled)
         while time.monotonic() < deadline:
             row = self.poe_status().get(port, {})
-            delivering = row.get("mw", 0) > 0
-            if delivering == want_mw or (not enabled and row.get("state") == "Disable"):
-                return row
+            if enabled:
+                # Enables: watts must return (every managed port carries a PD).
+                if row.get("mw", 0) > 0:
+                    return row
+            else:
+                # Disables (issue #20): the admin state itself must read
+                # Disable — a 0 mW reading alone is NOT evidence (a dropped
+                # cmd=775 on an enabled-but-PD-less port reads 0 mW too).
+                if row.get("state") == "Disable":
+                    return row
             time.sleep(1.5)
         raise RuntimeError(f"poe toggle port {port} unverified: {row}")
 
@@ -402,10 +419,20 @@ def complete_password_gate(host: str, old: str, new: str) -> bool:
         )
         return w.opener.open(req, timeout=8).read().decode("latin-1", "replace")
 
+    def get(cmd: int) -> str:
+        # Issue #17: fetch the gate page directly. Going through StockWeb's
+        # _fetch() on a bare __new__ instance raises AttributeError
+        # (_in_login unset) — and eviction-retry is unwanted in a virgin
+        # session anyway (the gate MUST be fetched fresh, per the CRITICAL
+        # procedure note above).
+        return w.opener.open(_u.Request(f"{w.base}?cmd={cmd}"), timeout=8).read().decode(
+            "latin-1", "replace"
+        )
+
     auth_id = post(f"username=admin&password={zyxel_encode(old)}&login=true;").strip()
     if "OK" not in post(f"authId={auth_id}&login_chk=true"):
         return False
-    page = w.get(30)
+    page = get(30)
     m = re.search(r'name="XSSID"\s+value="([0-9A-F]+)"', page)
     if not m:
         return False  # no gate in this state
