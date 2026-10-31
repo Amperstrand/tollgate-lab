@@ -145,6 +145,21 @@ def restart(
         timeout_s=wait_readers_s,
     )
     try:
+        # Codex P2 on #26: the wait for the disturbance lock can span
+        # another lane ACQUIRING a place after the snapshot above —
+        # revalidate under the lock and release without restarting.
+        late_others = _labgrid_other_holders(project)
+        if late_others:
+            bench_event(
+                "pcscd-restart-denied-late",
+                f"project={project or '-'} holders={'; '.join(late_others)}",
+            )
+            return {
+                "systemctl_rc": -1,
+                "stable": False,
+                "detail": "DENIED under lock: other lanes hold labgrid "
+                          "places: " + "; ".join(late_others),
+            }
         bench_event("pcscd-restart", f"project={project or '-'} reason={reason or '-'}")
         rc = systemctl_restart_pcscd()
         stable, detail = False, "not probed"
