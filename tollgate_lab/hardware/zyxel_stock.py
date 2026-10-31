@@ -241,11 +241,13 @@ class StockWeb:
         fields.update({k: v for k, v in POE_TOGGLE_FIELDS.items() if k not in fields})
         self.post_cmd(775, fields)
         deadline = time.monotonic() + 30
-        want_mw = int(enabled)
         while time.monotonic() < deadline:
             row = self.poe_status().get(port, {})
-            delivering = row.get("mw", 0) > 0
-            if delivering == want_mw or (not enabled and row.get("state") == "Disable"):
+            # Enable verifies on delivered watts; disable must observe the
+            # admin-state transition — a zero-power row whose state is still
+            # Enable is a DROPPED cmd=775, not a verified disable (#20).
+            verified = (row.get("mw", 0) > 0) if enabled else (row.get("state") == "Disable")
+            if verified:
                 return row
             time.sleep(1.5)
         raise RuntimeError(f"poe toggle port {port} unverified: {row}")

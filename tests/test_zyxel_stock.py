@@ -1,5 +1,7 @@
 import urllib.request
 
+import pytest
+
 
 class _Resp:
     def __init__(self, text):
@@ -169,3 +171,67 @@ class TestEvictionRetry:
         w.opener = _Opener(router)
         assert w.post_cmd(775, {"portlist": "5", "state": "0"}) == "applied-page"
         assert "XSSID=D1E2F3" in writes[-1]
+
+
+class TestDisableVerification:
+    """#20: a disable must verify the admin-state transition — a 0 mW row
+    whose state is still Enable is NOT a verified disable (cmd=775 can be
+    dropped while the port sits at zero power)."""
+
+    ROW = {
+        5: {"state": "Enable", "class": "class0", "priority": "Low", "powerup": "802.3at", "mw": 0}
+    }
+
+    @staticmethod
+    def _web(rows, apply_cmd=None):
+        import tollgate_lab.hardware.zyxel_stock as zs
+
+        w = zs.StockWeb.__new__(zs.StockWeb)
+        w.poe_status = lambda: {k: dict(v) for k, v in rows.items()}
+
+        def _post(cmd, fields):
+            if apply_cmd:
+                apply_cmd(rows)
+
+        w.post_cmd = _post
+        return w
+
+    @staticmethod
+    def _fast_clock(monkeypatch):
+        import tollgate_lab.hardware.zyxel_stock as zs
+
+        now = [1000.0]
+        monkeypatch.setattr(zs.time, "monotonic", lambda: now[0])
+
+        def advance(s):
+            now[0] += s
+
+        monkeypatch.setattr(zs.time, "sleep", advance)
+
+    def test_disable_rejects_zero_power_enabled_row(self, monkeypatch):
+        self._fast_clock(monkeypatch)
+        w = self._web(self.ROW)  # cmd=775 dropped: row stays Enable @ 0 mW
+        with pytest.raises(RuntimeError, match="unverified"):
+            w.set_poe_state(5, False)
+
+    def test_disable_verifies_on_state_disable(self, monkeypatch):
+        import copy
+
+        self._fast_clock(monkeypatch)
+        rows = copy.deepcopy(self.ROW)
+
+        def apply(rows):
+            rows[5]["state"] = "Disable"
+
+        assert self._web(rows, apply).set_poe_state(5, False)["state"] == "Disable"
+
+    def test_enable_still_verifies_on_watts(self, monkeypatch):
+        import copy
+
+        self._fast_clock(monkeypatch)
+        rows = copy.deepcopy(self.ROW)
+
+        def apply(rows):
+            rows[5]["mw"] = 4300
+
+        assert self._web(rows, apply).set_poe_state(5, True)["mw"] == 4300
