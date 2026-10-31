@@ -126,3 +126,46 @@ class TestPasswordGate:
         monkeypatch.setattr(urllib.request, "build_opener", lambda *a, **k: _Opener(router))
         assert zs.complete_password_gate("h", "old", "new") is True
         assert seen["gate_post"] is True
+
+
+class TestEvictionRetry:
+    """#19: after an eviction the retry must REBUILD the POST body with the
+    refreshed XSSID — resubmitting the original serialized Request can never
+    apply the write."""
+
+    def test_retry_reposts_with_refreshed_xssid(self, monkeypatch):
+        import http.cookiejar
+
+        import tollgate_lab.hardware.zyxel_stock as zs
+
+        writes = []
+
+        class Router:
+            def open(self, req, timeout=None):
+                data = req.data.decode() if req.data else ""
+                url = getattr(req, "full_url", "")
+                if "login=true" in data:
+                    return "A1B2C3"
+                if "login_chk" in data:
+                    return "OK"
+                if url.endswith("cmd=1"):
+                    return '<input name="XSSID" value="D1E2F3">'
+                if "XSSID=" in data:
+                    writes.append(data)
+                    if "XSSID=D1E2F3" in data:
+                        return "applied-page"
+                    return '<input id="username">'  # evicted shape
+                raise AssertionError(f"unexpected request {url!r} {data!r}")
+
+        router = Router()
+        monkeypatch.setattr(urllib.request, "build_opener", lambda *a, **k: _Opener(router))
+        w = zs.StockWeb.__new__(zs.StockWeb)
+        w.base = "http://x/cgi-bin/dispatcher.cgi"
+        w.user, w.host = "admin", "x"
+        w._password = "pw"
+        w._in_login = False
+        w.xssid = "STALE01"
+        w.jar = http.cookiejar.CookieJar()
+        w.opener = _Opener(router)
+        assert w.post_cmd(775, {"portlist": "5", "state": "0"}) == "applied-page"
+        assert "XSSID=D1E2F3" in writes[-1]

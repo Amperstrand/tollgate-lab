@@ -156,10 +156,14 @@ class StockWeb:
     def _evicted(self, body: str) -> bool:
         return not self._in_login and any(m in body for m in self._LOGIN_PAGE_MARKERS)
 
-    def _fetch(self, request: urllib.request.Request) -> str:
+    def _fetch(self, request: urllib.request.Request, rebuild=None) -> str:
         body = self.opener.open(request, timeout=8).read().decode("latin-1", "replace")
         if self._evicted(body):
             self._login(self._password)
+            # The POST body serialized the OLD XSSID — rebuild or the retry
+            # reopens a request that can only be rejected again (#19).
+            if rebuild is not None:
+                request = rebuild()
             body = self.opener.open(request, timeout=8).read().decode("latin-1", "replace")
             if self._evicted(body):
                 raise RuntimeError(
@@ -171,14 +175,18 @@ class StockWeb:
     def get(self, cmd: int) -> str:
         return self._fetch(urllib.request.Request(f"{self.base}?cmd={cmd}"))
 
-    def post_cmd(self, cmd: int, fields: dict[str, str]) -> str:
+    def _post_request(self, cmd: int, fields: dict[str, str]) -> urllib.request.Request:
         data = "&".join(f"{k}={v}" for k, v in fields.items())
-        req = urllib.request.Request(
+        return urllib.request.Request(
             self.base,
             data=f"XSSID={self.xssid}&{data}&cmd={cmd}&sysSubmit=Apply".encode(),
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
-        return self._fetch(req)
+
+    def post_cmd(self, cmd: int, fields: dict[str, str]) -> str:
+        return self._fetch(
+            self._post_request(cmd, fields), rebuild=lambda: self._post_request(cmd, fields)
+        )
 
     # -- PoE ----------------------------------------------------------------
 
