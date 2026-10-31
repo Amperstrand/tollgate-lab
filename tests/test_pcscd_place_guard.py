@@ -6,6 +6,7 @@ Codex P1 on tollgate-lab#26).
 """
 import sys
 from unittest import mock
+
 sys.path.insert(0, ".")
 from tollgate_lab import pcscd_ctl
 

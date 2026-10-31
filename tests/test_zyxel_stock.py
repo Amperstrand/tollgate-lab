@@ -1,8 +1,6 @@
 import pytest
 
 
-
-
 class TestRecoveryTooling:
     """2026-09-25 incident: unverified save -> factory revert -> this tooling."""
 
@@ -204,7 +202,6 @@ class TestDisableVerification:
         return w
 
     def test_dropped_disable_does_not_verify(self, monkeypatch):
-        import tollgate_lab.hardware.zyxel_stock as zs
 
         clock = {"t": 0.0}
         rows = {5: {"state": "Enable", "class": "class0", "priority": "Low",
@@ -214,7 +211,6 @@ class TestDisableVerification:
             w.set_poe_state(5, enabled=False)
 
     def test_real_disable_verifies(self, monkeypatch):
-        import tollgate_lab.hardware.zyxel_stock as zs
 
         clock = {"t": 0.0}
         rows = {5: {"state": "Disable", "class": "class0", "priority": "Low",
