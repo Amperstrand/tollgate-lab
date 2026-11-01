@@ -71,10 +71,12 @@ reboots, etc.).
 - `cloud/` — VM provisioning (below)
 - `public.py` — stable public API surface (`from tollgate_lab import HardwareLock`)
 
-**Public API** (`tollgate_lab/__init__.py`, `tollgate_lab/public.py`):
+**Public API** (`tollgate_lab/__init__.py`, `tollgate_lab/public.py`,
+`tollgate_lab/drivers/__init__.py`):
 ```python
 from tollgate_lab import HardwareLock
 from tollgate_lab.public import Router
+from tollgate_lab.drivers import RouterDriver
 ```
 
 ## Cloud providers (3 supported)
