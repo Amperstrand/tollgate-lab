@@ -5,6 +5,7 @@ automation as a labgrid-compatible driver.
 """
 
 import logging
+from typing import Any
 
 import attr
 from labgrid import target_factory
@@ -31,14 +32,14 @@ class PlaywrightBrowserDriver(Driver):
     bindings = {"network": "NetworkService"}
     headless = attr.ib(default=True)
 
-    def __attrs_post_init__(self):
+    def __attrs_post_init__(self) -> None:
         super().__attrs_post_init__()
         self.logger = logging.getLogger(f"{self}({self.target})")
-        self._playwright = None
-        self._browser = None
-        self._page = None
+        self._playwright: Any = None
+        self._browser: Any = None
+        self._page: Any = None
 
-    def on_activate(self):
+    def on_activate(self) -> None:
         from playwright.sync_api import sync_playwright
 
         self._playwright = sync_playwright().start()
@@ -46,26 +47,26 @@ class PlaywrightBrowserDriver(Driver):
         self._page = self._browser.new_page()
         self.logger.info("Playwright browser started")
 
-    def on_deactivate(self):
+    def on_deactivate(self) -> None:
         if self._browser:
             self._browser.close()
         if self._playwright:
             self._playwright.stop()
         self.logger.info("Playwright browser stopped")
 
-    def goto(self, url: str):
+    def goto(self, url: str) -> None:
         """Navigate to a URL."""
         self._page.goto(url)
 
-    def click(self, selector: str):
+    def click(self, selector: str) -> None:
         """Click an element by CSS selector."""
         self._page.click(selector)
 
-    def fill(self, selector: str, value: str):
+    def fill(self, selector: str, value: str) -> None:
         """Fill a form field."""
         self._page.fill(selector, value)
 
-    def screenshot(self, path: str):
+    def screenshot(self, path: str) -> None:
         """Capture a screenshot."""
         self._page.screenshot(path=path)
 
@@ -79,6 +80,6 @@ class PlaywrightBrowserDriver(Driver):
         """Get the current page URL."""
         return self._page.url
 
-    def wait_for_selector(self, selector: str, timeout: float = 30.0):
+    def wait_for_selector(self, selector: str, timeout: float = 30.0) -> None:
         """Wait for an element to appear."""
         self._page.wait_for_selector(selector, timeout=int(timeout * 1000))

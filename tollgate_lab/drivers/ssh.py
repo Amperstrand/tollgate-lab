@@ -8,10 +8,11 @@ control without a labgrid dependency.
 import json
 import subprocess
 import time
+from typing import Any
 
 
-def _ssh_run(host, cmd, timeout=30, stdin_data=None):
-    kwargs = dict(
+def _ssh_run(host: str, cmd: str, timeout: int = 30, stdin_data: bytes | None = None) -> str:
+    kwargs: dict[str, Any] = dict(
         args=["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", f"ubuntu@{host}", cmd],
         capture_output=True,
         text=True,
@@ -26,19 +27,24 @@ def _ssh_run(host, cmd, timeout=30, stdin_data=None):
 class SSHEsp32Adapter:
     """ESP32 serial control via SSH — same interface as EspSerialDriver."""
 
-    def __init__(self, host="ai-legion", serial_port="/dev/ttyUSB0", baud=115200):
+    def __init__(
+        self,
+        host: str = "ai-legion",
+        serial_port: str = "/dev/ttyUSB0",
+        baud: int = 115200,
+    ) -> None:
         self._host = host
         self.serial_port = serial_port
         self.baud = baud
 
-    def read(self, duration_secs=10):
+    def read(self, duration_secs: int = 10) -> str:
         cmd = (
             f"sudo stty -F {self.serial_port} {self.baud} raw -echo 2>/dev/null;"
             f" sudo timeout {duration_secs} cat {self.serial_port} 2>/dev/null || true"
         )
         return _ssh_run(self._host, cmd, timeout=duration_secs + 10)
 
-    def reset_and_capture(self, duration_secs=60):
+    def reset_and_capture(self, duration_secs: int = 60) -> str:
         script = (
             f'sudo python3 -c "'
             f"import serial,time;"
@@ -54,7 +60,7 @@ class SSHEsp32Adapter:
         )
         return _ssh_run(self._host, script, timeout=duration_secs + 15)
 
-    def send_command(self, command, timeout_secs=2):
+    def send_command(self, command: str, timeout_secs: int = 2) -> str:
         script = (
             f'sudo python3 -c "'
             f"import serial,time;"
@@ -67,7 +73,7 @@ class SSHEsp32Adapter:
         )
         return _ssh_run(self._host, script, timeout=timeout_secs + 10)
 
-    def show_stats(self):
+    def show_stats(self) -> dict:
         output = self.send_command("show_stats", timeout_secs=2)
         for line in output.splitlines():
             line = line.strip()
@@ -78,7 +84,7 @@ class SSHEsp32Adapter:
                     pass
         return {}
 
-    def flash(self, firmware_path_on_build_host, build_host="ai-legion-small"):
+    def flash(self, firmware_path_on_build_host: str, build_host: str = "ai-legion-small") -> str:
         """Convert ELF to binary, copy to this host, flash to ESP32."""
         binary_path = "/tmp/fips-flash.bin"
 
@@ -110,20 +116,25 @@ class SSHEsp32Adapter:
 class SSHFipsAdapter:
     """FIPS daemon control via SSH — same interface as FipsServiceDriver."""
 
-    def __init__(self, host="ai-legion-small", service_name="fips", ble_adapter="hci0"):
+    def __init__(
+        self,
+        host: str = "ai-legion-small",
+        service_name: str = "fips",
+        ble_adapter: str = "hci0",
+    ) -> None:
         self._host = host
         self.service_name = service_name
         self.ble_adapter = ble_adapter
         self._fipsctl = "/home/ubuntu/src/fips/target/release/fipsctl"
 
-    def restart(self):
+    def restart(self) -> None:
         _ssh_run(self._host, f"sudo hciconfig {self.ble_adapter} down", timeout=10)
         time.sleep(2)
         _ssh_run(self._host, f"sudo hciconfig {self.ble_adapter} up", timeout=10)
         time.sleep(1)
         _ssh_run(self._host, f"sudo systemctl restart {self.service_name}", timeout=15)
 
-    def status(self):
+    def status(self) -> str:
         output = _ssh_run(self._host, f"sudo systemctl status {self.service_name}", timeout=10)
         if "active (running)" in output:
             return "running"
@@ -131,11 +142,11 @@ class SSHFipsAdapter:
             return "stopped"
         return "unknown"
 
-    def has_peer(self, npub):
+    def has_peer(self, npub: str) -> bool:
         output = _ssh_run(self._host, f"sudo {self._fipsctl} has-peer {npub}", timeout=10)
         return "true" in output.lower() or "yes" in output.lower()
 
-    def show_peers(self):
+    def show_peers(self) -> list:
         output = _ssh_run(self._host, f"sudo {self._fipsctl} show-peers", timeout=10)
         try:
             return json.loads(output)
@@ -146,11 +157,13 @@ class SSHFipsAdapter:
 class SSHFirmwareBuilder:
     """Build firmware on a remote host — same interface as a labgrid build driver."""
 
-    def __init__(self, host="ai-legion-small", repo_path="/home/ubuntu/src/microfips"):
+    def __init__(
+        self, host: str = "ai-legion-small", repo_path: str = "/home/ubuntu/src/microfips"
+    ) -> None:
         self._host = host
         self._repo = repo_path
 
-    def build(self, features="l2cap", timeout=600):
+    def build(self, features: str = "l2cap", timeout: int = 600) -> str:
         """Pull latest + build ESP32 firmware. Returns remote ELF path."""
         env_setup = (
             "export PATH=/home/ubuntu/.rustup/toolchains/esp/bin:"

@@ -6,7 +6,7 @@ from coincurve import PrivateKey
 
 
 def sign_event(
-    tags: list, kind: int = 21000, content: str = "", priv_hex: str | None = None
+    tags: list[list[str]], kind: int = 21000, content: str = "", priv_hex: str | None = None
 ) -> dict:
     sk = PrivateKey(bytes.fromhex(priv_hex)) if priv_hex else PrivateKey()
     pubkey = sk.public_key_xonly.format().hex()
