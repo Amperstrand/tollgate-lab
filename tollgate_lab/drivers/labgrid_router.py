@@ -35,12 +35,12 @@ class RouterDriver(Driver, CommandProtocol):
 
     bindings = {"network": "NetworkService"}
 
-    def __attrs_post_init__(self):
+    def __attrs_post_init__(self) -> None:
         super().__attrs_post_init__()
         self.logger = logging.getLogger(f"{self}({self.target})")
 
     @step(args=["command"])
-    def run(self, command: str, timeout: float = 30.0):
+    def run(self, command: str, timeout: float = 30.0) -> tuple[list[str], list[str], int]:
         """Run a command on the router via SSH.
 
         Returns:
@@ -71,7 +71,7 @@ class RouterDriver(Driver, CommandProtocol):
         return stdout, stderr, result.returncode
 
     @step(args=["command"])
-    def run_check(self, command: str, timeout: float = 30.0):
+    def run_check(self, command: str, timeout: float = 30.0) -> list[str]:
         """Run a command and raise on non-zero exit.
 
         Returns:
@@ -83,7 +83,7 @@ class RouterDriver(Driver, CommandProtocol):
         return stdout
 
     @step(args=["command"])
-    def get_status(self):
+    def get_status(self) -> str:
         """Check router connectivity."""
         try:
             self.run("echo ok", timeout=5.0)
@@ -91,7 +91,7 @@ class RouterDriver(Driver, CommandProtocol):
         except Exception:
             return "unreachable"
 
-    def put_file(self, source: str, dest: str, timeout: float = 60.0):
+    def put_file(self, source: str, dest: str, timeout: float = 60.0) -> None:
         """Upload a file to the router via SCP."""
         host = self.network.address
         user = self.network.username
@@ -110,7 +110,7 @@ class RouterDriver(Driver, CommandProtocol):
             timeout=timeout,
         )
 
-    def get_file(self, source: str, dest: str, timeout: float = 60.0):
+    def get_file(self, source: str, dest: str, timeout: float = 60.0) -> None:
         """Download a file from the router via SCP."""
         host = self.network.address
         user = self.network.username
@@ -129,7 +129,7 @@ class RouterDriver(Driver, CommandProtocol):
             timeout=timeout,
         )
 
-    def install_package(self, ipk_path: str, timeout: float = 120.0):
+    def install_package(self, ipk_path: str, timeout: float = 120.0) -> None:
         """Install an .ipk package on the router."""
         remote_path = f"/tmp/{ipk_path.split('/')[-1]}"
         self.put_file(ipk_path, remote_path)

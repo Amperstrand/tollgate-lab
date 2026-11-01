@@ -34,12 +34,12 @@ class AndroidADBDriver(Driver, CommandProtocol):
 
     bindings = {"network": "NetworkService", "device_serial": "AndroidADDDevice"}
 
-    def __attrs_post_init__(self):
+    def __attrs_post_init__(self) -> None:
         super().__attrs_post_init__()
         self.logger = logging.getLogger(f"{self}({self.target})")
-        self._serial = None
+        self._serial: str | None = None
 
-    def on_activate(self):
+    def on_activate(self) -> None:
         if self.device_serial:
             self._serial = self.device_serial.serial
         else:
@@ -73,7 +73,7 @@ class AndroidADBDriver(Driver, CommandProtocol):
         return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
 
     @step(args=["command"])
-    def run(self, command: str, timeout: float = 30.0):
+    def run(self, command: str, timeout: float = 30.0) -> tuple[list[str], list[str], int]:
         """Run a shell command on the Android device."""
         result = self._adb(["shell", command], timeout)
         stdout = result.stdout.split("\n") if result.stdout else []
@@ -81,7 +81,7 @@ class AndroidADBDriver(Driver, CommandProtocol):
         return stdout, stderr, result.returncode
 
     @step(args=["command"])
-    def run_check(self, command: str, timeout: float = 30.0):
+    def run_check(self, command: str, timeout: float = 30.0) -> list[str]:
         """Run command and raise on failure."""
         stdout, stderr, exitcode = self.run(command, timeout)
         if exitcode != 0:
@@ -89,13 +89,15 @@ class AndroidADBDriver(Driver, CommandProtocol):
         return stdout
 
     @step()
-    def get_status(self):
+    def get_status(self) -> str:
         """Check device connectivity."""
         result = self._adb(["get-state"], timeout=5.0)
         return result.stdout.strip() or "unreachable"
 
     @step(args=["command"])
-    def wait_for(self, command, pattern, timeout=30.0, interval=1.0):
+    def wait_for(
+        self, command: str, pattern: str, timeout: float = 30.0, interval: float = 1.0
+    ) -> list[str]:
         """Run command repeatedly until its output matches pattern.
 
         Returns the matching output lines; raises ExecutionError on timeout.
@@ -118,7 +120,9 @@ class AndroidADBDriver(Driver, CommandProtocol):
         )
 
     @step(args=["command"])
-    def poll_until_success(self, command, timeout=30.0, interval=1.0):
+    def poll_until_success(
+        self, command: str, timeout: float = 30.0, interval: float = 1.0
+    ) -> list[str]:
         """Run command repeatedly until it exits 0; returns final stdout."""
         import time as _time
 
@@ -137,17 +141,17 @@ class AndroidADBDriver(Driver, CommandProtocol):
                 )
             _time.sleep(interval)
 
-    def screenshot(self, dest_path: str):
+    def screenshot(self, dest_path: str) -> None:
         """Capture a screenshot from the device."""
         self._adb(["shell", "screencap", "-p", "/sdcard/screen.png"])
         self._adb(["pull", "/sdcard/screen.png", dest_path])
         self._adb(["shell", "rm", "/sdcard/screen.png"])
 
-    def open_url(self, url: str):
+    def open_url(self, url: str) -> None:
         """Open a URL in the device's browser."""
         self._adb(["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", url])
 
-    def install_apk(self, apk_path: str, timeout: float = 120.0):
+    def install_apk(self, apk_path: str, timeout: float = 120.0) -> None:
         """Install an APK on the device."""
         self._adb(["install", "-r", apk_path], timeout=timeout)
 
