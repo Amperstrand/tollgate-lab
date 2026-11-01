@@ -60,19 +60,19 @@ class FipsServiceDriver(Driver):
         time.sleep(1)
 
     @Driver.check_active
-    def start(self):
+    def start(self) -> str:
         if self.service_kind == "systemd":
             return self.shell.run_check(self._systemd_cmd("start"))
         return self.shell.run_check(self._launchctl("kickstart", "-k"))
 
     @Driver.check_active
-    def stop(self):
+    def stop(self) -> str:
         if self.service_kind == "systemd":
             return self.shell.run_check(self._systemd_cmd("stop"))
         return self.shell.run_check(self._launchctl("bootout"))
 
     @Driver.check_active
-    def restart(self):
+    def restart(self) -> str:
         self._reset_ble_adapter()
         if self.service_kind == "systemd":
             return self.shell.run_check(self._systemd_cmd("restart"))

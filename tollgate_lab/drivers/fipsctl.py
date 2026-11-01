@@ -44,7 +44,7 @@ class FipsctlDriver(Driver):
         return self.run_fipsctl("show", "status")
 
     @Driver.check_active
-    def show_peers(self) -> list:
+    def show_peers(self) -> list[dict]:
         """Return the list of known peers."""
         result = self.run_fipsctl("show", "peers")
         if isinstance(result, dict):
