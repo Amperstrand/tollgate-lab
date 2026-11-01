@@ -9,6 +9,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from dataclasses import field as dc_field
+from typing import Any
 
 # Default constants — override via constructor params or env vars
 BACKEND_PORT = int(os.environ.get("TOLLGATE_BACKEND_PORT", "8080"))
@@ -56,7 +57,7 @@ class Router:
         jump_host: str | None = None,
         port: int | None = None,
         backend: BackendConfig | None = None,
-    ):
+    ) -> None:
         self.host = host
         self.phone_ip = phone_ip
         self.phone_mac = phone_mac
@@ -103,7 +104,7 @@ class Router:
             self._ssh_base.extend(["-J", jump_host])
         self._ssh_base.append(f"root@{host}")
 
-    def close(self):
+    def close(self) -> None:
         with contextlib.suppress(Exception):
             subprocess.run(
                 [
@@ -122,7 +123,7 @@ class Router:
         with contextlib.suppress(OSError):
             os.rmdir(self._control_dir)
 
-    def resolve_phone_client(self, adb) -> tuple:
+    def resolve_phone_client(self, adb: Any) -> tuple[str, str]:
         mac = adb.wifi_mac()
         if mac:
             self.phone_mac = mac
@@ -162,7 +163,7 @@ class Router:
             pass
         return ""
 
-    def backend_url(self, path="/"):
+    def backend_url(self, path: str = "/") -> str:
         host = "127.0.0.1" if self.backend.is_rust else "[::1]"
         return f"http://{host}:{BACKEND_PORT}{path}"
 
@@ -189,7 +190,7 @@ class Router:
                 self._nds_gateway_domain = ""
         return self._nds_gateway_domain
 
-    def ensure_nds_gateway_domain_supported(self):
+    def ensure_nds_gateway_domain_supported(self) -> None:
         """Patch /etc/init.d/nodogsplash to include gatewaydomainname if missing."""
         if self.ssh("grep -q gatewaydomainname /etc/init.d/nodogsplash").strip():
             return
@@ -210,7 +211,7 @@ class Router:
             pass
         return CGI_PORT
 
-    def cgi_url(self, endpoint):
+    def cgi_url(self, endpoint: str) -> str:
         port = self._detect_cgi_port()
         return f"http://127.0.0.1:{port}/cgi-bin/{endpoint}"
 
@@ -235,7 +236,7 @@ class Router:
             return "000"
         return ""
 
-    def _ssh_env(self):
+    def _ssh_env(self) -> dict[str, str]:
         env = os.environ.copy()
         if self._ssh_pw:
             env["SSHPASS"] = self._ssh_pw
@@ -257,7 +258,7 @@ class Router:
         out = r.stdout.strip()
         return re.sub(r"Warning:.*Permanently added[^\n]*\n?", "", out).strip()
 
-    def write_remote_text(self, remote_path: str, content: str, timeout: int = 15):
+    def write_remote_text(self, remote_path: str, content: str, timeout: int = 15) -> None:
         result = self.ssh_stdin(f"cat > {shlex.quote(remote_path)}", content, timeout=timeout)
         if result.returncode == 0:
             return
@@ -265,10 +266,12 @@ class Router:
         cleaned = noise.sub("", result.stderr).strip()
         raise RuntimeError(f"Failed to write {remote_path} ({result.returncode}): {cleaned[:300]}")
 
-    def write_remote_json(self, remote_path: str, payload, indent: int = 2, timeout: int = 15):
+    def write_remote_json(
+        self, remote_path: str, payload: dict, indent: int = 2, timeout: int = 15
+    ) -> None:
         self.write_remote_text(remote_path, json.dumps(payload, indent=indent), timeout=timeout)
 
-    def ssh_stdin(self, cmd: str, data: str, timeout: int = 15):
+    def ssh_stdin(self, cmd: str, data: str, timeout: int = 15) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             self._ssh_base + [cmd],
             input=data,
@@ -278,7 +281,7 @@ class Router:
             env=self._ssh_env(),
         )
 
-    def scp_to(self, local_path: str, remote_path: str, timeout: int = 120):
+    def scp_to(self, local_path: str, remote_path: str, timeout: int = 120) -> None:
         ssh_opts = [
             "-o",
             "StrictHostKeyChecking=no",
@@ -306,7 +309,7 @@ class Router:
         if r.returncode != 0:
             raise RuntimeError(f"SCP failed ({r.returncode}): {r.stderr.strip()[:300]}")
 
-    def fix_nodogsplash_dhcp(self):
+    def fix_nodogsplash_dhcp(self) -> None:
         """Ensure nodogsplash allows DHCP through its ndsRTR chain.
 
         Nodogsplash's ndsRTR chain drops ALL unauthenticated packets (mark
@@ -340,7 +343,7 @@ class Router:
         except Exception as e:
             log.warning(f"Could not fix nodogsplash DHCP: {e}")
 
-    def disable_ipv6_on_lan(self):
+    def disable_ipv6_on_lan(self) -> None:
         """Disable IPv6 on the LAN interface to prevent captive portal bypass.
 
         Nodogsplash only manages IPv4 iptables. If IPv6 Router Advertisements
@@ -567,7 +570,7 @@ class Router:
             time.sleep(poll_interval)
         raise TimeoutError(f"Session did not expire within {max_wait}s")
 
-    def reset_state(self, mac: str | None = None, adb=None):
+    def reset_state(self, mac: str | None = None, adb: Any = None) -> None:
         if not mac and not self.phone_mac and adb:
             detected = adb.wifi_mac()
             if detected:
@@ -584,7 +587,7 @@ class Router:
         self.ssh("echo '' > /tmp/tollgate-portal.log")
         self.ssh("echo '' > /www/pending-token.txt")
 
-    def apply_pricing(self, step_size: int | None = None, metric: str = "milliseconds"):
+    def apply_pricing(self, step_size: int | None = None, metric: str = "milliseconds") -> None:
         if step_size is None:
             default_step_size_ms = int(os.environ.get("TOLLGATE_DEFAULT_STEP_SIZE_MS", "1000"))
             step_size = default_step_size_ms
@@ -599,12 +602,12 @@ class Router:
         self.restart_backend()
         self._wait_for_backend()
 
-    def restore_pricing(self):
+    def restore_pricing(self) -> None:
         self.ssh("cp /etc/tollgate/config.json.test-backup /etc/tollgate/config.json")
         self.restart_backend()
         self._wait_for_backend()
 
-    def _wait_for_backend(self, timeout: int = 15):
+    def _wait_for_backend(self, timeout: int = 15) -> None:
         start = time.time()
         while time.time() - start < timeout:
             code = self.api_status("/")
@@ -630,7 +633,7 @@ class Router:
             time.sleep(interval)
         return False
 
-    def restart_backend(self, timeout: int = 30):
+    def restart_backend(self, timeout: int = 30) -> None:
         """Restart the backend service and wait for readiness.
 
         For Go backend: waits for CLI socket at /var/run/tollgate.sock.
@@ -661,16 +664,16 @@ class Router:
     def get_portal_log(self) -> str:
         return self.ssh("cat /tmp/tollgate-portal.log 2>/dev/null")
 
-    def clear_portal_log(self):
+    def clear_portal_log(self) -> None:
         self.ssh("echo '' > /tmp/tollgate-portal.log")
 
-    def enable_debug_portal(self):
+    def enable_debug_portal(self) -> None:
         self.ssh("mkdir -p /etc/tollgate && touch /etc/tollgate/debug-portal")
 
-    def disable_debug_portal(self):
+    def disable_debug_portal(self) -> None:
         self.ssh("rm -f /etc/tollgate/debug-portal")
 
-    def ensure_test_mint(self):
+    def ensure_test_mint(self) -> None:
         cfg_raw = self.ssh("cat /etc/tollgate/config.json")
         cfg = json.loads(cfg_raw)
         if any(m.get("url") == TEST_MINT_URL for m in cfg.get("accepted_mints", [])):
@@ -695,7 +698,7 @@ class Router:
         self.restart_backend()
         log.info(f"Added {TEST_MINT_URL} to accepted mints, restarted backend")
 
-    def replace_mints(self, mint_urls: list[str] | None = None):
+    def replace_mints(self, mint_urls: list[str] | None = None) -> None:
         """Replace all accepted mints with only the specified URLs.
 
         Args:
@@ -763,7 +766,7 @@ class Router:
     def get_tollgate_logs(self, filter_expr: str = "tollgate", lines: int = 200) -> str:
         return self.ssh(f"logread -l {lines} -e {filter_expr} 2>/dev/null")
 
-    def collect_logs(self, results_dir: str, adb=None, bundle: str | None = None):
+    def collect_logs(self, results_dir: str, adb: Any = None, bundle: str | None = None) -> None:
         raw = os.path.join(results_dir, "raw")
         if bundle:
             raw = os.path.join(raw, "failures", bundle)
