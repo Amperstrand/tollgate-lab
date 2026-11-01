@@ -102,3 +102,15 @@ class TestMainExitCodes:
         rc = pcscd_ctl.main(["restart", "--project", "lane"])
         assert rc == 3, "contention must exit 3 (documented), not traceback 1"
         assert "lock-contention" in capsys.readouterr().out
+
+
+def test_restart_emits_unstable_event_when_systemctl_fails(monkeypatch):
+    """Codex P2 on PR #15: a denied systemctl restart with the old daemon
+    still stable must not emit pcscd-restart-done (exit half fixed in #23,
+    event half here)."""
+    events = []
+    _patch(monkeypatch, events, stable=(True, "5 readers listed"), rc=1)
+    pcscd_ctl.restart(project="test", reason="unit")
+    kinds = [e for e, _d in events]
+    assert "pcscd-restart-done" not in kinds
+    assert "pcscd-restart-unstable" in kinds

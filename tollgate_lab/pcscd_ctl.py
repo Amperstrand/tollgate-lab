@@ -172,7 +172,10 @@ def restart(
             if stable:
                 break
         bench_event(
-            "pcscd-restart-done" if stable else "pcscd-restart-unstable",
+            # "done" requires the restart to have actually happened: a denied
+            # systemctl call with the old daemon still stable must not emit a
+            # success event (Codex P2 on PR #15; exit half fixed in #23).
+            "pcscd-restart-done" if stable and rc == 0 else "pcscd-restart-unstable",
             f"systemctl_rc={rc} {detail}",
         )
         return {"systemctl_rc": rc, "stable": stable, "detail": detail}
