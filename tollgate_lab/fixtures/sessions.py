@@ -19,7 +19,7 @@ def hardware_lock():
 
 
 @pytest.fixture(scope="session")
-def router_env():
+def router_env() -> dict[str, str]:
     """Load router environment configuration from env vars."""
     return {
         "host": os.environ.get("ROUTER_SSH_HOST", "192.168.13.112"),

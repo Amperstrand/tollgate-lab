@@ -37,7 +37,7 @@ class EspFlashDriver(Driver):
         validator=attr.validators.in_(["auto_reset", "firmware_rst", "manual"]),
     )
 
-    def _prompt_user(self, msg: str):
+    def _prompt_user(self, msg: str) -> None:
         logger.info("MANUAL INTERVENTION: %s", msg)
         print(f"\n  >>> {msg}\n", file=sys.stderr)
         input("  Press Enter when done...")
@@ -54,14 +54,14 @@ class EspFlashDriver(Driver):
             return "--after soft_reset"
         return "--after no_reset"
 
-    def _ensure_bootloader(self):
+    def _ensure_bootloader(self) -> None:
         if self.reset_method == "manual":
             self._prompt_user(
                 f"Press BOOT+RST on the board at {self.serial_port} to enter bootloader"
             )
 
     @Driver.check_active
-    def flash(self, firmware_path: str):
+    def flash(self, firmware_path: str) -> list[str]:
         """Write firmware to the ESP32.
 
         Args:
@@ -93,7 +93,7 @@ class EspFlashDriver(Driver):
         return self.shell.run_check(cmd)
 
     @Driver.check_active
-    def erase_flash(self):
+    def erase_flash(self) -> list[str]:
         """Erase the entire flash chip."""
         self._ensure_bootloader()
         return self.shell.run_check(
@@ -102,7 +102,7 @@ class EspFlashDriver(Driver):
         )
 
     @Driver.check_active
-    def reset_app(self):
+    def reset_app(self) -> None:
         """Reset the running app via firmware CDC RST handler.
 
         Only works when reset_method='firmware_rst' and the app

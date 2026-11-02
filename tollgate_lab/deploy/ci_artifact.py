@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import contextlib
 import json
 import logging
@@ -6,7 +8,12 @@ import shutil
 import subprocess
 import tempfile
 import time
+from collections.abc import Mapping
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from tollgate_lab.drivers.router import BackendConfig, Router
 
 log = logging.getLogger("tollgate.deploy")
 
@@ -44,7 +51,7 @@ BLOSSOM_MIRROR_SERVERS = [
 TEST_DEPS = ["curl", "socat", "nodogsplash", "jq", "luci", "px5g-mbedtls"]
 
 
-def detect_package_manager(router) -> str:
+def detect_package_manager(router: Router) -> str:
     """Detect whether the router uses opkg (24.x) or apk (25.x).
 
     OpenWRT 25.x ships apk-tools and does NOT have opkg.
@@ -60,7 +67,7 @@ def detect_package_manager(router) -> str:
     return "opkg"
 
 
-def detect_arch(router) -> str:
+def detect_arch(router: Router) -> str:
     """Detect the package architecture from a running OpenWrt router via SSH.
 
     Tries ``opkg print-architecture`` first (24.x), then ``/etc/apk/arch``
@@ -108,7 +115,7 @@ def detect_arch(router) -> str:
     raise RuntimeError("Cannot detect router architecture via SSH")
 
 
-def _ssh_env():
+def _ssh_env() -> Mapping[str, str]:
     pw = os.environ.get("TOLLGATE_SSH_PASSWORD") or os.environ.get("TOLLGATE_LUCI_PASSWORD")
     if not pw:
         return os.environ
@@ -117,7 +124,7 @@ def _ssh_env():
     return env
 
 
-def _scp_to_router(router, local_path, remote_path):
+def _scp_to_router(router: Router, local_path: str | Path, remote_path: str) -> None:
     ssh_opts = [
         "-o",
         "StrictHostKeyChecking=no",
@@ -148,7 +155,7 @@ def _scp_to_router(router, local_path, remote_path):
         )
 
 
-def _transfer_to_router(router, local_path, remote_path):
+def _transfer_to_router(router: Router, local_path: str | Path, remote_path: str) -> None:
     """Transfer a binary file to router via SCP (bytes mode) with size verification."""
     _scp_to_router(router, local_path, remote_path)
 
@@ -245,14 +252,14 @@ def _repack_ar_to_targz(ipk_path: Path) -> None:
     )
 
 
-def _parse_version(opkg_line):
+def _parse_version(opkg_line: str) -> str | None:
     if not opkg_line:
         return None
     parts = opkg_line.split()
     return parts[2] if len(parts) >= 3 else (parts[1] if len(parts) >= 2 else opkg_line)
 
 
-def _write_rust_compat_config(router):
+def _write_rust_compat_config(router: Router) -> None:
     test_mint_url = os.environ.get("TOLLGATE_TEST_MINT_URL", "https://testmint.nut.cash")
     default_step_size_ms = int(os.environ.get("TOLLGATE_DEFAULT_STEP_SIZE_MS", "1000"))
     config = {
@@ -278,7 +285,7 @@ def _write_rust_compat_config(router):
     log.info("Wrote Rust-compat config.json with mint=%s", test_mint_url)
 
 
-def _wait_for_health(router, timeout=60):
+def _wait_for_health(router: Router, timeout: int = 60) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
         if router.api_status("/") == 200:
@@ -287,7 +294,7 @@ def _wait_for_health(router, timeout=60):
     return False
 
 
-def _wait_for_reboot(router, timeout=180):
+def _wait_for_reboot(router: Router, timeout: int = 180) -> bool:
     log.info("Waiting for router to come back online...")
     time.sleep(10)
     deadline = time.time() + timeout
@@ -303,7 +310,7 @@ def _wait_for_reboot(router, timeout=180):
     return False
 
 
-def install_test_deps(router):
+def install_test_deps(router: Router) -> None:
     log.info("Installing test dependencies: %s", ", ".join(TEST_DEPS))
     pm = detect_package_manager(router)
     if pm == "apk":
@@ -969,7 +976,12 @@ def _rerun_arch_job(repo: str, run_id: str, arch: str) -> bool:
     return True
 
 
-def deploy(router, ipk_path: Path, reboot: bool = False, backend=None) -> dict[str, object]:
+def deploy(
+    router: Router,
+    ipk_path: Path,
+    reboot: bool = False,
+    backend: BackendConfig | None = None,
+) -> dict[str, object]:
     ipk_path = Path(ipk_path)
     if not ipk_path.exists():
         raise FileNotFoundError(f"IPK not found: {ipk_path}")
@@ -1043,7 +1055,7 @@ def deploy(router, ipk_path: Path, reboot: bool = False, backend=None) -> dict[s
     }
 
 
-def reboot_router(router, wait: bool = True) -> dict[str, object]:
+def reboot_router(router: Router, wait: bool = True) -> dict[str, object]:
     log.info("Rebooting router")
     with contextlib.suppress(subprocess.TimeoutExpired, Exception):
         router.ssh("reboot", timeout=5)
@@ -1069,7 +1081,7 @@ def reboot_router(router, wait: bool = True) -> dict[str, object]:
     }
 
 
-def check_deployed(router) -> dict[str, object]:
+def check_deployed(router: Router) -> dict[str, object]:
     try:
         version_out = router.ssh("opkg list-installed | grep tollgate-wrt", timeout=10)
     except Exception:
@@ -1093,7 +1105,7 @@ def check_deployed(router) -> dict[str, object]:
 
 
 def factory_reset(
-    router, reboot: bool = False, expected_mac: str | None = None
+    router: Router, reboot: bool = False, expected_mac: str | None = None
 ) -> dict[str, object]:
     guard_mac = expected_mac or os.environ.get("TOLLGATE_EXPECTED_MAC", "")
     if guard_mac:
@@ -1166,7 +1178,7 @@ def factory_reset(
     return {"success": True, "rebooted": False}
 
 
-def firstboot_reset(router, expected_mac: str | None = None) -> dict[str, object]:
+def firstboot_reset(router: Router, expected_mac: str | None = None) -> dict[str, object]:
     guard_mac = expected_mac or os.environ.get("TOLLGATE_EXPECTED_MAC", "")
     if guard_mac:
         log.info("Verifying router MAC address before firstboot reset")
@@ -1207,7 +1219,7 @@ def firstboot_reset(router, expected_mac: str | None = None) -> dict[str, object
 
 
 def deploy_portal(
-    router, portal, arch: str | None = None, branch: str = "main"
+    router: Router, portal: dict, arch: str | None = None, branch: str = "main"
 ) -> dict[str, object]:
     """Download and install an alternative portal .ipk on the router.
 
@@ -1282,14 +1294,14 @@ def deploy_portal(
 
 
 def deploy_branch(
-    router,
+    router: Router,
     branch: str,
     arch: str | None = None,
     run_id: str | None = None,
     force: bool = False,
     reboot: bool = False,
     repo: str | None = None,
-    backend=None,
+    backend: BackendConfig | None = None,
 ) -> dict[str, object]:
     if not arch:
         env_arch = os.environ.get("TOLLGATE_ROUTER_ARCH")
