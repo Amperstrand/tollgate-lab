@@ -45,10 +45,12 @@ class PcscdDomainHeldError(RuntimeError):
             # Shared READERS leave no holder record (many concurrent SH
             # holders cannot share one file) — an empty record with a
             # refused EX means live reader session(s), not a ghost.
-            return ("pcscd domain is held by live reader session(s) "
-                    "(shared readers keep no single holder record) — "
-                    "readers and usb/pcscd disturbances are mutually "
-                    "exclusive (B32)")
+            return (
+                "pcscd domain is held by live reader session(s) "
+                "(shared readers keep no single holder record) — "
+                "readers and usb/pcscd disturbances are mutually "
+                "exclusive (B32)"
+            )
         return (
             f"pcscd domain is held by a {self.holder.get('role', '?')} "
             f"({self.holder.get('project', '?')}, pid "
