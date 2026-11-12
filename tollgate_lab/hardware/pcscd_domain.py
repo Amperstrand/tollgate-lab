@@ -41,6 +41,14 @@ class PcscdDomainHeldError(RuntimeError):
     holder: dict[str, str]
 
     def __str__(self) -> str:  # pragma: no cover - message only
+        if not self.holder:
+            # Shared READERS leave no holder record (many concurrent SH
+            # holders cannot share one file) — an empty record with a
+            # refused EX means live reader session(s), not a ghost.
+            return ("pcscd domain is held by live reader session(s) "
+                    "(shared readers keep no single holder record) — "
+                    "readers and usb/pcscd disturbances are mutually "
+                    "exclusive (B32)")
         return (
             f"pcscd domain is held by a {self.holder.get('role', '?')} "
             f"({self.holder.get('project', '?')}, pid "
@@ -144,6 +152,17 @@ class PcscdDomainLock:
                 f"released (project={self.holder.get('project', '-')})",
             )
             try:
+                # Clear the holder record on disturbance release: a stale
+                # record outlives its writer (fd closed) and gets
+                # misattributed by later PcscdDomainHeldError messages —
+                # a refusal caused by live READERS would name a
+                # long-dead disturbance (observed 2026-11-12).
+                if self.holder.get("role") == "disturbance":
+                    try:
+                        os.ftruncate(self.fd, 0)
+                        os.fsync(self.fd)
+                    except OSError:
+                        pass
                 fcntl.flock(self.fd, fcntl.LOCK_UN)
             finally:
                 os.close(self.fd)
